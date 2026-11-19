@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ncomp | โน้ตบุ๊กและอุปกรณ์ (CDP demo)</title>
+    <script>
+      window.cdp = window.cdp || []
+      ;['init', 'track', 'page', 'identify', 'reset', 'setConsent', 'flush'].forEach(function (m) {
+        cdp[m] = function () {
+          cdp.push([m].concat([].slice.call(arguments)))
+        }
+      })
+      cdp.init('dev', { endpoint: location.origin + '/v1/collect' })
+    </script>
+    <script async src="/sdk.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --ink: #0f172a;
+        --ink-2: #475569;
+        --line: #e2e8f0;
+        --bg: #f1f5f9;
+        --card: #fff;
+        --brand: #2563eb;
+        --brand-ink: #1e40af;
+        --sale: #e11d48;
+        --navy: #0b1220;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: 'IBM Plex Sans Thai', system-ui, sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+        font-size: 15px;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      button {
+        font: inherit;
+        cursor: pointer;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: #fff;
+        padding: 9px 16px;
+        color: var(--ink);
+      }
+      button:hover {
+        border-color: #cbd5e1;
+      }
+      button.primary {
+        background: var(--brand);
+        border-color: var(--brand);
+        color: #fff;
+        font-weight: 600;
+      }
+      button.primary:hover {
+        background: var(--brand-ink);
+      }
+      input {
+        font: inherit;
+        padding: 9px 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        width: 100%;
+      }
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: var(--navy);
+        color: #fff;
+      }
+      .bar {
+        max-width: 1280px;
+        margin: auto;
+        padding: 12px 16px;
+        display: flex;
+        gap: 14px;
+        align-items: center;
+      }
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 700;
+        font-size: 22px;
+        letter-spacing: -0.5px;
+      }
+      .logo span {
+        display: grid;
+        place-items: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: var(--brand);
+        font-size: 18px;
+      }
+      .bar form {
+        flex: 1;
+        max-width: 520px;
+      }
+      .bar input {
+        border: 0;
+      }
+      .bar button {
+        background: transparent;
+        color: #fff;
+        border-color: #334155;
+      }
+      .bar .grow {
+        flex: 1;
+      }
+      .badge {
+        background: var(--sale);
+        color: #fff;
+        border-radius: 999px;
+        padding: 0 7px;
+        font-size: 12px;
+        margin-left: 6px;
+      }
+      nav {
+        background: #111a2e;
+        border-top: 1px solid #1e293b;
+      }
+      nav .bar {
+        padding: 8px 16px;
+        gap: 20px;
+        font-size: 14px;
+        color: #cbd5e1;
+        overflow-x: auto;
+      }
+      nav a:hover,
+      nav a.on {
+        color: #fff;
+      }
+      .layout {
+        max-width: 1280px;
+        margin: auto;
+        padding: 20px 16px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 300px;
+        gap: 20px;
+      }
+      @media (max-width: 960px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .bar .hide-sm {
+          display: none;
+        }
+      }
+      .hero {
+        background: var(--navy);
+        color: #fff;
+        border-radius: 16px;
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+        align-items: center;
+        overflow: hidden;
+        margin-bottom: 24px;
+      }
+      .hero > div:first-child {
+        padding: 32px;
+      }
+      .hero h1 {
+        margin: 6px 0 10px;
+        font-size: 32px;
+        line-height: 1.25;
+      }
+      .hero p {
+        color: #94a3b8;
+        margin: 0 0 20px;
+      }
+      .hero .kicker {
+        color: #60a5fa;
+        font-weight: 600;
+        font-size: 13px;
+        letter-spacing: 1px;
+      }
+      @media (max-width: 640px) {
+        .hero {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .hero h1 {
+          font-size: 24px;
+        }
+      }
+      .section-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin: 0 0 12px;
+      }
+      .section-title h2 {
+        margin: 0;
+        font-size: 20px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 14px;
+      }
+      .card {
+        background: var(--card);
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        transition:
+          transform 0.15s,
+          box-shadow 0.15s;
+      }
+      .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+      }
+      .pic {
+        position: relative;
+        background: linear-gradient(180deg, #f8fafc, #eef2f7);
+        aspect-ratio: 4 / 3;
+        display: grid;
+        place-items: center;
+      }
+      .pic svg,
+      .pic img {
+        width: 86%;
+        height: auto;
+      }
+      .tag {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 2px 9px;
+        border-radius: 999px;
+        background: var(--brand);
+        color: #fff;
+      }
+      .tag.sale {
+        background: var(--sale);
+      }
+      .info {
+        padding: 12px 14px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        flex: 1;
+      }
+      .name {
+        font-weight: 600;
+      }
+      .spec {
+        color: var(--ink-2);
+        font-size: 13px;
+      }
+      .price {
+        color: var(--ink);
+        font-weight: 700;
+        font-size: 18px;
+        margin-top: auto;
+      }
+      .was {
+        color: #94a3b8;
+        text-decoration: line-through;
+        font-weight: 400;
+        font-size: 13px;
+        margin-left: 6px;
+      }
+      .stars {
+        color: #f59e0b;
+        font-size: 13px;
+      }
+      .muted {
+        color: var(--ink-2);
+        font-size: 13px;
+      }
+      .panel {
+        background: var(--card);
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        padding: 20px;
+      }
+      .detail {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+        gap: 28px;
+      }
+      .detail .pic {
+        border-radius: 12px;
+      }
+      @media (max-width: 720px) {
+        .detail {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      .specs {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 14px 0;
+        font-size: 14px;
+      }
+      .specs td {
+        padding: 7px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .specs td:first-child {
+        color: var(--ink-2);
+        width: 110px;
+      }
+      .perks {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 10px 0 16px;
+      }
+      .perks span {
+        background: #eff6ff;
+        color: var(--brand-ink);
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 999px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .row .thumb {
+        width: 84px;
+        flex: none;
+        background: #f1f5f9;
+        border-radius: 10px;
+        padding: 6px;
+      }
+      .row .grow {
+        flex: 1;
+      }
+      .pay label {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        margin-bottom: 8px;
+        cursor: pointer;
+      }
+      aside {
+        position: sticky;
+        top: 120px;
+        align-self: start;
+        background: #0b1220;
+        color: #e2e8f0;
+        border-radius: 14px;
+        padding: 16px;
+        font-size: 12px;
+      }
+      aside h3 {
+        margin: 0 0 8px;
+        font-size: 13px;
+        color: #fbbf24;
+      }
+      aside code {
+        color: #5eead4;
+        word-break: break-all;
+      }
+      aside pre {
+        margin: 6px 0 10px;
+        white-space: pre-wrap;
+        max-height: 260px;
+        overflow: auto;
+        font-size: 11px;
+      }
+      aside button {
+        background: #1e293b;
+        color: #e2e8f0;
+        border-color: #334155;
+        padding: 4px 10px;
+        font-size: 12px;
+      }
+      footer {
+        text-align: center;
+        color: var(--ink-2);
+        font-size: 13px;
+        padding: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="bar">
+        <a class="logo" href="#/"><span>N</span>Ncomp</a>
+        <form id="search" class="grow"><input name="q" placeholder="ค้นหาโน้ตบุ๊ก เช่น gaming, OLED, 16GB" /></form>
+        <span id="who" class="hide-sm"></span>
+        <a href="#/cart"><button>ตะกร้า<span class="badge" id="count">0</span></button></a>
+      </div>
+      <nav>
+        <div class="bar" id="cats"></div>
+      </nav>
+    </header>
+
+    <div class="layout">
+      <main id="view"></main>
+      <aside>
+        <h3>CDP debug</h3>
+        <div>anonymousId <code id="aid">-</code></div>
+        <div>userId <code id="uid">-</code></div>
+        <h3 style="margin-top: 12px">คิวรอส่ง (<span id="qn">0</span>)</h3>
+        <pre id="q"></pre>
+        <button onclick="cdp.flush()">ส่งเลย (flush)</button>
+        <div style="color: #94a3b8; margin-top: 8px">ส่งอัตโนมัติทุก 5 วินาที หรือเมื่อครบ 20 event</div>
+      </aside>
+    </div>
+    <footer>Ncomp เป็นร้านจำลองสำหรับทดสอบ CDP SDK ไม่มีการขายจริง</footer>
+
+    <script>
+      // Product art is drawn in SVG (no external images). Set `image: 'url'` on a product to use a real photo instead.
+      var PRODUCTS = [
+        { id: 'NB-AERO14', name: 'Ncomp Aero 14', category: 'Ultrabook', price: 38990, was: 42990, tag: 'ขายดี', rating: 4.8, reviews: 214,
+          chassis: '#c9ced6', screen: ['#60a5fa', '#a78bfa'],
+          specs: { CPU: 'Intel Core Ultra 7 155H', RAM: '16GB LPDDR5X', SSD: '1TB NVMe', จอ: '14" 2.8K OLED 120Hz', น้ำหนัก: '1.2 กก.', แบต: 'สูงสุด 15 ชม.' } },
+        { id: 'NB-AERO16', name: 'Ncomp Aero 16', category: 'Ultrabook', price: 49990, rating: 4.7, reviews: 96,
+          chassis: '#4b5563', screen: ['#38bdf8', '#0ea5e9'],
+          specs: { CPU: 'Intel Core Ultra 9 185H', RAM: '32GB LPDDR5X', SSD: '1TB NVMe', จอ: '16" 3.2K 120Hz', น้ำหนัก: '1.6 กก.', แบต: 'สูงสุด 13 ชม.' } },
+        { id: 'NB-VORTEX15', name: 'Ncomp Vortex 15', category: 'Gaming', price: 42990, tag: 'ใหม่', rating: 4.6, reviews: 58, gaming: true,
+          chassis: '#1f2937', screen: ['#f43f5e', '#f97316'],
+          specs: { CPU: 'AMD Ryzen 7 8845HS', GPU: 'RTX 4060 8GB', RAM: '16GB DDR5', SSD: '1TB NVMe', จอ: '15.6" FHD 165Hz', น้ำหนัก: '2.3 กก.' } },
+        { id: 'NB-VORTEX17P', name: 'Ncomp Vortex 17 Pro', category: 'Gaming', price: 89990, rating: 4.9, reviews: 31, gaming: true,
+          chassis: '#111827', screen: ['#22d3ee', '#a855f7'],
+          specs: { CPU: 'Intel Core i9-14900HX', GPU: 'RTX 4080 12GB', RAM: '32GB DDR5', SSD: '2TB NVMe', จอ: '17.3" QHD 240Hz', น้ำหนัก: '2.9 กก.' } },
+        { id: 'NB-STUDIO16', name: 'Ncomp Studio 16', category: 'Creator', price: 72990, was: 76990, rating: 4.8, reviews: 44,
+          chassis: '#e5e7eb', screen: ['#f59e0b', '#ef4444'],
+          specs: { CPU: 'Intel Core Ultra 9 185H', GPU: 'RTX 4070 8GB', RAM: '32GB LPDDR5X', SSD: '2TB NVMe', จอ: '16" 4K OLED 100% DCI-P3', น้ำหนัก: '1.9 กก.' } },
+        { id: 'NB-WORK14', name: 'Ncomp Work 14', category: 'Business', price: 26990, rating: 4.5, reviews: 132,
+          chassis: '#27272a', screen: ['#34d399', '#10b981'],
+          specs: { CPU: 'Intel Core Ultra 5 125U', RAM: '16GB DDR5', SSD: '512GB NVMe', จอ: '14" FHD+ IPS', น้ำหนัก: '1.35 กก.', ประกัน: 'On-site 3 ปี' } },
+        { id: 'NB-FLIP13', name: 'Ncomp Work 13 Flip', category: '2-in-1', price: 29990, was: 32990, rating: 4.4, reviews: 67,
+          chassis: '#d1d5db', screen: ['#f472b6', '#c084fc'],
+          specs: { CPU: 'Intel Core Ultra 5 125U', RAM: '16GB LPDDR5', SSD: '512GB NVMe', จอ: '13.3" FHD ทัชสกรีน หมุน 360°', น้ำหนัก: '1.3 กก.', ปากกา: 'แถมในกล่อง' } },
+        { id: 'NB-LITE15', name: 'Ncomp Lite 15', category: 'Student', price: 15990, tag: 'คุ้มค่า', rating: 4.3, reviews: 389,
+          chassis: '#9ca3af', screen: ['#93c5fd', '#6ee7b7'],
+          specs: { CPU: 'AMD Ryzen 5 7530U', RAM: '8GB DDR4', SSD: '512GB NVMe', จอ: '15.6" FHD IPS', น้ำหนัก: '1.7 กก.', แบต: 'สูงสุด 9 ชม.' } },
+        { id: 'AC-MOUSE', name: 'Ncomp Glide เมาส์ไร้สาย', category: 'Accessory', price: 1290, rating: 4.6, reviews: 512, kind: 'mouse',
+          chassis: '#1f2937', specs: { การเชื่อมต่อ: 'Bluetooth 5.3 / 2.4GHz', แบต: 'ชาร์จ USB-C ใช้ได้ 70 วัน' } },
+        { id: 'AC-SLEEVE', name: 'Ncomp ซองใส่โน้ตบุ๊ก 15"', category: 'Accessory', price: 990, rating: 4.5, reviews: 201, kind: 'sleeve',
+          chassis: '#334155', specs: { ขนาด: 'สูงสุด 15.6"', วัสดุ: 'ผ้ากันน้ำ บุโฟม' } },
+      ]
+      var CATS = ['Ultrabook', 'Gaming', 'Creator', 'Business', '2-in-1', 'Student', 'Accessory']
+
+      var cart = JSON.parse(localStorage.getItem('shop_cart') || '{}') // id -> qty
+      var user = JSON.parse(localStorage.getItem('shop_user') || 'null')
+      var $ = function (id) {
+        return document.getElementById(id)
+      }
+      var byId = function (id) {
+        return PRODUCTS.filter(function (p) {
+          return p.id === id
+        })[0]
+      }
+      var baht = function (n) {
+        return '฿' + n.toLocaleString('th-TH')
+      }
+      var esc = function (s) {
+        return String(s).replace(/[&<>"]/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]
+        })
+      }
+      var shortSpec = function (p) {
+        var s = p.specs
+        return [s.CPU, s.GPU, s.RAM, s.จอ].filter(Boolean).slice(0, 3).join(' · ')
+      }
+      var productProps = function (p, qty) {
+        return { product_id: p.id, name: p.name, brand: 'Ncomp', category: p.category, price: p.price, quantity: qty || 1, currency: 'THB' }
+      }
+
+      var uid = 0
+      function art(p) {
+        if (p.image) return '<img src="' + esc(p.image) + '" alt="' + esc(p.name) + '" />'
+        var g = 'g' + ++uid
+        if (p.kind === 'mouse')
+          return (
+            '<svg viewBox="0 0 320 240" aria-label="' + esc(p.name) + '"><ellipse cx="160" cy="210" rx="70" ry="10" fill="#0f172a" opacity=".08"/>' +
+            '<rect x="110" y="40" width="100" height="165" rx="50" fill="' + p.chassis + '"/>' +
+            '<line x1="160" y1="44" x2="160" y2="105" stroke="#475569" stroke-width="2"/><rect x="154" y="62" width="12" height="24" rx="6" fill="#64748b"/>' +
+            '<path d="M118 112 Q160 124 202 112" stroke="#334155" stroke-width="2" fill="none"/></svg>'
+          )
+        if (p.kind === 'sleeve')
+          return (
+            '<svg viewBox="0 0 320 240" aria-label="' + esc(p.name) + '"><ellipse cx="160" cy="212" rx="120" ry="10" fill="#0f172a" opacity=".08"/>' +
+            '<rect x="40" y="50" width="240" height="160" rx="18" fill="' + p.chassis + '"/>' +
+            '<path d="M40 86 H280" stroke="#475569" stroke-width="3" stroke-dasharray="2 6"/><rect x="128" y="34" width="64" height="26" rx="8" fill="none" stroke="#475569" stroke-width="6"/>' +
+            '<text x="160" y="160" fill="#94a3b8" font-size="22" font-family="sans-serif" font-weight="700" text-anchor="middle">Ncomp</text></svg>'
+          )
+        var rgb = p.gaming
+          ? '<rect x="70" y="203" width="180" height="4" rx="2" fill="url(#' + g + 'k)"/>' +
+            '<linearGradient id="' + g + 'k"><stop offset="0" stop-color="#22d3ee"/><stop offset=".5" stop-color="#a855f7"/><stop offset="1" stop-color="#f43f5e"/></linearGradient>'
+          : ''
+        return (
+          '<svg viewBox="0 0 320 240" aria-label="' + esc(p.name) + '"><defs><linearGradient id="' + g + '" x1="0" y1="0" x2="1" y2="1">' +
+          '<stop offset="0" stop-color="' + p.screen[0] + '"/><stop offset="1" stop-color="' + p.screen[1] + '"/></linearGradient>' +
+          '<clipPath id="' + g + 'c"><rect x="59" y="33" width="202" height="130" rx="3"/></clipPath></defs>' +
+          '<ellipse cx="160" cy="222" rx="140" ry="8" fill="#0f172a" opacity=".08"/>' +
+          '<rect x="48" y="22" width="224" height="152" rx="10" fill="' + p.chassis + '"/>' +
+          '<rect x="54" y="28" width="212" height="140" rx="6" fill="#0b1220"/>' +
+          '<rect x="59" y="33" width="202" height="130" rx="3" fill="url(#' + g + ')"/>' +
+          '<g clip-path="url(#' + g + 'c)"><circle cx="110" cy="80" r="46" fill="#fff" opacity=".18"/><circle cx="220" cy="140" r="60" fill="#fff" opacity=".12"/>' +
+          '<path d="M59 140 Q140 100 261 128 V163 H59 Z" fill="#0b1220" opacity=".18"/></g>' +
+          '<path d="M24 176 H296 L284 206 Q282 212 274 212 H46 Q38 212 36 206 Z" fill="' + p.chassis + '"/>' +
+          '<path d="M24 176 H296 L294 182 H26 Z" fill="#0f172a" opacity=".15"/><rect x="134" y="176" width="52" height="5" rx="2.5" fill="#0f172a" opacity=".2"/>' +
+          rgb + '</svg>'
+        )
+      }
+
+      function stars(p) {
+        return '<span class="stars">★ ' + p.rating + '</span> <span class="muted">(' + p.reviews + ')</span>'
+      }
+      function priceHtml(p) {
+        return baht(p.price) + (p.was ? '<span class="was">' + baht(p.was) + '</span>' : '')
+      }
+      function card(p, list) {
+        var tag = p.was
+          ? '<span class="tag sale">ลด ' + Math.round((1 - p.price / p.was) * 100) + '%</span>'
+          : p.tag
+            ? '<span class="tag">' + p.tag + '</span>'
+            : ''
+        return (
+          '<a class="card" href="#/product/' + p.id + '" onclick="clicked(\'' + p.id + "','" + (list || '') + '\')">' +
+          '<div class="pic">' + tag + art(p) + '</div>' +
+          '<div class="info"><div class="muted">' + p.category + '</div><div class="name">' + esc(p.name) + '</div>' +
+          '<div class="spec">' + esc(shortSpec(p)) + '</div><div>' + stars(p) + '</div><div class="price">' + priceHtml(p) + '</div></div></a>'
+        )
+      }
+      function clicked(id, list) {
+        if (list) cdp.track('Product Clicked', Object.assign(productProps(byId(id)), { list: list }))
+      }
+      function grid(items, list) {
+        return '<div class="grid">' + items.map(function (p) {
+          return card(p, list)
+        }).join('') + '</div>'
+      }
+
+      var views = {
+        home: function () {
+          cdp.page('Home')
+          var laptops = PRODUCTS.filter(function (p) {
+            return p.category !== 'Accessory'
+          })
+          return (
+            '<section class="hero"><div><div class="kicker">BACK TO SCHOOL 2026</div><h1>โน้ตบุ๊กสำหรับทุกงาน<br />ลดสูงสุด 10% ผ่อน 0% 10 เดือน</h1>' +
+            '<p>Ultrabook น้ำหนักเบา, เครื่องเกมแรง ๆ และเครื่องสำหรับงานสร้างสรรค์ ส่งฟรีทั่วไทย</p>' +
+            '<a href="#/product/NB-AERO14" onclick="cdp.track(\'Promotion Clicked\',{promotion_id:\'bts-2026\',name:\'Back to School 2026\',creative:\'hero\'})">' +
+            '<button class="primary">ดู Ncomp Aero 14</button></a></div><div>' + art(byId('NB-AERO14')) + '</div></section>' +
+            '<div class="section-title"><h2>โน้ตบุ๊กแนะนำ</h2><span class="muted">' + laptops.length + ' รุ่น</span></div>' +
+            grid(laptops, 'home-featured') +
+            '<div class="section-title" style="margin-top:28px"><h2>อุปกรณ์เสริม</h2></div>' +
+            grid(PRODUCTS.filter(function (p) {
+              return p.category === 'Accessory'
+            }), 'home-accessories')
+          )
+        },
+        c: function (cat) {
+          cat = decodeURIComponent(cat || '')
+          var items = PRODUCTS.filter(function (p) {
+            return p.category === cat
+          })
+          cdp.page('Category', { category: cat })
+          cdp.track('Product List Viewed', { list_id: 'category-' + cat, category: cat, products: items.map(function (p) { return { product_id: p.id, price: p.price } }) })
+          return '<div class="section-title"><h2>' + esc(cat) + '</h2><span class="muted">' + items.length + ' รายการ</span></div>' + grid(items, 'category-' + cat)
+        },
+        search: function (q) {
+          q = decodeURIComponent(q || '')
+          var needle = q.toLowerCase()
+          var hits = PRODUCTS.filter(function (p) {
+            return (p.name + ' ' + p.category + ' ' + JSON.stringify(p.specs)).toLowerCase().indexOf(needle) >= 0
+          })
+          cdp.page('Search Results', { query: q })
+          cdp.track('Products Searched', { query: q, results: hits.length })
+          return (
+            '<div class="section-title"><h2>ผลการค้นหา "' + esc(q) + '"</h2><span class="muted">' + hits.length + ' รายการ</span></div>' +
+            (hits.length ? grid(hits, 'search') : '<div class="panel muted">ไม่พบสินค้าที่ตรงกับคำค้น ลองคำอื่น เช่น "OLED" หรือ "RTX"</div>')
+          )
+        },
+        product: function (id) {
+          var p = byId(id)
+          if (!p) return views.home()
+          cdp.page('Product', { product_id: p.id })
+          cdp.track('Product Viewed', productProps(p))
+          var rows = Object.keys(p.specs).map(function (k) {
+            return '<tr><td>' + k + '</td><td>' + esc(p.specs[k]) + '</td></tr>'
+          }).join('')
+          var related = PRODUCTS.filter(function (x) {
+            return x.id !== p.id && (x.category === p.category || (p.category !== 'Accessory' && x.category === 'Accessory'))
+          }).slice(0, 4)
+          return (
+            '<div class="panel detail"><div class="pic">' + art(p) + '</div><div>' +
+            '<div class="muted"><a href="#/c/' + encodeURIComponent(p.category) + '">' + p.category + '</a></div>' +
+            '<h1 style="margin:4px 0 6px;font-size:26px">' + esc(p.name) + '</h1><div>' + stars(p) + '</div>' +
+            '<div class="price" style="font-size:28px;margin:12px 0 0">' + priceHtml(p) + '</div>' +
+            (p.price >= 10000 ? '<div class="muted">หรือผ่อน 0% เดือนละ ' + baht(Math.ceil(p.price / 10)) + ' x 10 เดือน</div>' : '') +
+            '<div class="perks"><span>ส่งฟรี</span><span>ประกันศูนย์ 2 ปี</span><span>คืนสินค้าใน 7 วัน</span></div>' +
+            '<button class="primary" onclick="addToCart(\'' + p.id + '\', true)">ซื้อเลย</button> ' +
+            '<button onclick="addToCart(\'' + p.id + '\')">ใส่ตะกร้า</button>' +
+            '<table class="specs">' + rows + '</table></div></div>' +
+            '<div class="section-title" style="margin-top:28px"><h2>' + (p.category === 'Accessory' ? 'สินค้าที่คล้ายกัน' : 'ซื้อคู่กันบ่อย') + '</h2></div>' +
+            grid(related, 'related')
+          )
+        },
+        cart: function () {
+          var items = cartItems()
+          cdp.page('Cart')
+          cdp.track('Cart Viewed', { products: items.map(function (i) { return productProps(i.p, i.qty) }), value: cartTotal(), currency: 'THB' })
+          if (!items.length)
+            return '<div class="panel"><h2 style="margin-top:0">ตะกร้าว่าง</h2><p class="muted">ยังไม่มีสินค้าในตะกร้า</p><a href="#/"><button class="primary">เลือกซื้อโน้ตบุ๊ก</button></a></div>'
+          var hasAcc = items.some(function (i) {
+            return i.p.category === 'Accessory'
+          })
+          return (
+            '<div class="panel"><h2 style="margin-top:0">ตะกร้าสินค้า</h2>' +
+            items.map(function (i) {
+              return (
+                '<div class="row"><div class="thumb">' + art(i.p) + '</div><div class="grow"><div class="name">' + esc(i.p.name) + '</div>' +
+                '<div class="muted">' + baht(i.p.price) + ' x ' + i.qty + '</div></div><b>' + baht(i.p.price * i.qty) + '</b>' +
+                '<button onclick="removeFromCart(\'' + i.p.id + '\')">ลบ</button></div>'
+              )
+            }).join('') +
+            '<div class="row" style="border:0"><div class="grow"><b>รวมทั้งหมด</b> <span class="muted">ส่งฟรี</span></div><b style="font-size:22px">' + baht(cartTotal()) + '</b></div>' +
+            '<h3>วิธีชำระเงิน</h3><div class="pay">' +
+            '<label><input type="radio" name="pay" value="installment" checked style="width:auto" /> ผ่อน 0% 10 เดือน (บัตรเครดิต)</label>' +
+            '<label><input type="radio" name="pay" value="card" style="width:auto" /> บัตรเครดิต / เดบิต</label>' +
+            '<label><input type="radio" name="pay" value="promptpay" style="width:auto" /> PromptPay</label></div>' +
+            '<button class="primary" onclick="checkout()" style="width:100%;padding:12px">ชำระเงิน ' + baht(cartTotal()) + '</button></div>' +
+            (hasAcc ? '' : '<div class="section-title" style="margin-top:24px"><h2>เพิ่มอุปกรณ์เสริม</h2></div>' + grid(PRODUCTS.filter(function (p) {
+              return p.category === 'Accessory'
+            }), 'cart-upsell'))
+          )
+        },
+        login: function () {
+          cdp.page('Sign In')
+          return (
+            '<div class="panel" style="max-width:420px;margin:auto"><h2 style="margin-top:0">เข้าสู่ระบบ Ncomp</h2>' +
+            '<form id="login"><p><input name="name" placeholder="ชื่อ" value="สมชาย" required /></p>' +
+            '<p><input name="email" type="email" placeholder="อีเมล" value="somchai@example.com" required /></p>' +
+            '<button class="primary" style="width:100%">เข้าสู่ระบบ</button></form><p class="muted">ร้านจำลอง ไม่มีการตรวจรหัสผ่าน</p></div>'
+          )
+        },
+        done: function (orderId) {
+          cdp.page('Order Complete', { order_id: orderId })
+          return (
+            '<div class="panel" style="text-align:center;padding:40px"><div style="font-size:44px;color:#16a34a">✓</div><h2>สั่งซื้อสำเร็จ</h2>' +
+            '<p>เลขที่คำสั่งซื้อ <b>' + esc(orderId) + '</b></p><p class="muted">เราจะส่งอีเมลยืนยันและเลขพัสดุให้ภายใน 24 ชั่วโมง</p>' +
+            '<a href="#/"><button class="primary">เลือกซื้อต่อ</button></a></div>'
+          )
+        },
+      }
+
+      function saveCart() {
+        localStorage.setItem('shop_cart', JSON.stringify(cart))
+        $('count').textContent = Object.keys(cart).reduce(function (s, k) {
+          return s + cart[k]
+        }, 0)
+      }
+      function cartItems() {
+        return Object.keys(cart).filter(byId).map(function (id) {
+          return { p: byId(id), qty: cart[id] }
+        })
+      }
+      function cartTotal() {
+        return cartItems().reduce(function (s, i) {
+          return s + i.p.price * i.qty
+        }, 0)
+      }
+      function addToCart(id, buyNow) {
+        cart[id] = (cart[id] || 0) + 1
+        saveCart()
+        cdp.track('Product Added', productProps(byId(id)))
+        // no re-render here: it would fire Product Viewed again
+        if (buyNow) location.hash = '#/cart'
+      }
+      function removeFromCart(id) {
+        cdp.track('Product Removed', productProps(byId(id), cart[id]))
+        delete cart[id]
+        saveCart()
+        route()
+      }
+      function checkout() {
+        if (!user) {
+          sessionStorage.setItem('after_login', '#/cart')
+          location.hash = '#/login'
+          return
+        }
+        var pay = (document.querySelector('input[name=pay]:checked') || {}).value || 'card'
+        var products = cartItems().map(function (i) {
+          return productProps(i.p, i.qty)
+        })
+        cdp.track('Checkout Started', { products: products, value: cartTotal(), currency: 'THB' })
+        cdp.track('Payment Info Entered', { payment_method: pay })
+        var orderId = 'NC-' + Date.now().toString(36).toUpperCase()
+        cdp.track('Order Completed', { order_id: orderId, products: products, total: cartTotal(), shipping: 0, payment_method: pay, currency: 'THB' })
+        cart = {}
+        saveCart()
+        location.hash = '#/done/' + orderId
+      }
+      function renderWho() {
+        $('who').innerHTML = user
+          ? 'สวัสดี ' + esc(user.name) + ' <button onclick="logout()">ออกจากระบบ</button>'
+          : '<a href="#/login"><button>เข้าสู่ระบบ</button></a>'
+      }
+      function logout() {
+        cdp.track('Signed Out')
+        cdp.reset()
+        user = null
+        localStorage.removeItem('shop_user')
+        renderWho()
+        location.hash = '#/'
+      }
+
+      function route() {
+        var parts = location.hash.replace(/^#\/?/, '').split('/')
+        var view = views[parts[0]] || views.home
+        $('view').innerHTML = view(parts[1])
+        $('cats').innerHTML = CATS.map(function (c) {
+          return '<a href="#/c/' + encodeURIComponent(c) + '" class="' + (parts[0] === 'c' && decodeURIComponent(parts[1]) === c ? 'on' : '') + '">' + c + '</a>'
+        }).join('')
+        window.scrollTo(0, 0)
+      }
+
+      document.addEventListener('submit', function (e) {
+        e.preventDefault()
+        var f = e.target
+        if (f.id === 'search') location.hash = '#/search/' + encodeURIComponent(f.q.value.trim())
+        if (f.id === 'login') {
+          var email = f.email.value.trim().toLowerCase()
+          // ponytail: fake user id from email; a real site sends its own DB user id
+          user = { id: 'u_' + email.split('@')[0], name: f.name.value.trim(), email: email }
+          localStorage.setItem('shop_user', JSON.stringify(user))
+          cdp.identify(user.id, { name: user.name, email: user.email })
+          cdp.track('Signed In', { method: 'email' })
+          renderWho()
+          location.hash = sessionStorage.getItem('after_login') || '#/'
+          sessionStorage.removeItem('after_login')
+        }
+      })
+      addEventListener('hashchange', route)
+
+      setInterval(function () {
+        var q = JSON.parse(localStorage.getItem('cdp_queue') || '[]')
+        $('qn').textContent = q.length
+        $('q').textContent = q.length
+          ? q.map(function (e) {
+              return e.type + '  ' + (e.event || e.name || e.userId || '')
+            }).join('\n')
+          : '(ว่าง)'
+        var m = document.cookie.match(/(?:^|; )cdp_aid=([^;]*)/)
+        $('aid').textContent = m && m[1] ? m[1].slice(0, 8) + '…' : '-'
+        $('uid').textContent = localStorage.getItem('cdp_uid') || '-'
+      }, 500)
+
+      renderWho()
+      saveCart()
+      route()
+    </script>
+  </body>
+</html>

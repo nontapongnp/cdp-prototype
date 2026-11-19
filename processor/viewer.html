@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CDP profiles</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, "Noto Sans Thai", sans-serif; color: #1f2328; background: #f6f6f4; font-size: 14px; }
+    header { background: #1f2328; color: #fff; padding: 12px 16px; display: flex; gap: 12px; align-items: center; }
+    header b { color: #fac775; }
+    header input { flex: 1; max-width: 360px; padding: 6px 10px; border-radius: 8px; border: 0; font: inherit; }
+    .layout { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 16px; padding: 16px; max-width: 1400px; margin: auto; }
+    @media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+    .panel { background: #fff; border: 1px solid #ecece8; border-radius: 12px; }
+    .item { padding: 10px 14px; border-bottom: 1px solid #f0f0ec; cursor: pointer; }
+    .item:hover { background: #fafaf7; }
+    .item.on { background: #fdf0ea; }
+    .muted { color: #6b6b66; font-size: 12px; }
+    .tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #eeedfe; color: #3c3489; margin-right: 4px; }
+    .tag.anon { background: #f1efe8; color: #444441; }
+    .tag.src { background: #e1f5ee; color: #085041; }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+    .stat { background: #f6f6f4; border-radius: 8px; padding: 10px; }
+    .stat div:last-child { font-size: 20px; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    td { padding: 6px 8px; border-top: 1px solid #f0f0ec; vertical-align: top; word-break: break-word; }
+    td.t { width: 140px; } td.s { width: 70px; } td.e { width: 170px; font-weight: 500; }
+    code { font-size: 12px; color: #444441; }
+    .empty { padding: 40px; text-align: center; color: #6b6b66; }
+  </style>
+</head>
+<body>
+  <header><b>CDP</b> Profiles <input id="filter" placeholder="ค้นหา ชื่อ อีเมล userId" /> <span class="muted" style="color:#b4b2a9" id="status"></span></header>
+  <div class="layout">
+    <div class="panel" id="list"></div>
+    <div class="panel" style="padding:16px" id="detail"><div class="empty">เลือก profile ทางซ้าย</div></div>
+  </div>
+  <script>
+    var selected = null, profiles = [];
+    var $ = function (id) { return document.getElementById(id); };
+    var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+    var baht = function (n) { return '฿' + Number(n || 0).toLocaleString('th-TH'); };
+    var when = function (ts) { return ts ? new Date(ts).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'medium' }) : '-'; };
+    var parse = function (s) { try { return JSON.parse(s || '{}'); } catch (e) { return {}; } };
+    var label = function (p) { var t = parse(p.traits); return t.name || t.email || p.user_id || 'Anonymous'; };
+
+    function renderList() {
+      var f = $('filter').value.trim().toLowerCase();
+      var rows = profiles.filter(function (p) { return !f || (label(p) + ' ' + p.traits + ' ' + (p.user_id || '')).toLowerCase().indexOf(f) >= 0; });
+      $('list').innerHTML = rows.length ? rows.map(function (p) {
+        return '<div class="item' + (p.profile_id === selected ? ' on' : '') + '" data-id="' + esc(p.profile_id) + '">' +
+          '<div><b>' + esc(label(p)) + '</b> ' + (p.user_id ? '<span class="tag">' + esc(p.user_id) + '</span>' : '<span class="tag anon">anonymous</span>') + '</div>' +
+          '<div class="muted">' + p.events + ' events · ' + p.orders + ' orders · ' + baht(p.total_spent) + ' · ' + when(p.last_seen) + '</div>' +
+          '<div>' + String(p.sources || '').split(',').filter(Boolean).map(function (s) { return '<span class="tag src">' + esc(s) + '</span>'; }).join('') + '</div></div>';
+      }).join('') : '<div class="empty">ยังไม่มี profile</div>';
+    }
+
+    function summary(e) {
+      var p = parse(e.properties);
+      if (p.products) p = Object.assign({}, p, { products: p.products.map(function (x) { return x.name + ' x' + x.quantity; }).join(', ') });
+      return Object.keys(p).map(function (k) { return k + '=' + (typeof p[k] === 'object' ? JSON.stringify(p[k]) : p[k]); }).join('  ');
+    }
+
+    function loadDetail() {
+      if (!selected) return;
+      fetch('/api/profiles/' + encodeURIComponent(selected)).then(function (r) { return r.ok ? r.json() : null; }).then(function (p) {
+        if (!p) { selected = null; $('detail').innerHTML = '<div class="empty">profile นี้ถูกรวมเข้ากับ profile อื่นแล้ว</div>'; return; }
+        var s = profiles.filter(function (x) { return x.profile_id === selected; })[0] || {};
+        var traits = parse(p.traits);
+        $('detail').innerHTML =
+          '<h2 style="margin:0">' + esc(label(Object.assign({ user_id: s.user_id }, p))) + '</h2>' +
+          '<div class="muted">' + esc(p.profile_id) + ' · workspace ' + esc(p.workspace_id) + ' · first seen ' + when(p.first_seen) + '</div>' +
+          '<div class="stats">' +
+            '<div class="stat"><div class="muted">Events</div><div>' + (s.events || 0) + '</div></div>' +
+            '<div class="stat"><div class="muted">Orders</div><div>' + (s.orders || 0) + '</div></div>' +
+            '<div class="stat"><div class="muted">ยอดซื้อรวม</div><div>' + baht(s.total_spent) + '</div></div>' +
+            '<div class="stat"><div class="muted">ล่าสุด</div><div style="font-size:13px">' + when(p.last_seen) + '</div></div></div>' +
+          '<h3>Identities</h3><div>' + p.identities.map(function (i) { return '<span class="tag' + (i.kind === 'anon' ? ' anon' : '') + '">' + esc(i.kind) + ': ' + esc(i.value) + '</span>'; }).join(' ') + '</div>' +
+          '<h3>Traits</h3><code>' + esc(Object.keys(traits).length ? JSON.stringify(traits) : '(none)') + '</code>' +
+          '<h3>Timeline (' + p.events.length + ')</h3><table>' + p.events.map(function (e) {
+            return '<tr><td class="t muted">' + when(e.timestamp) + '</td><td class="s"><span class="tag src">' + esc(e.source) + '</span></td>' +
+              '<td class="e">' + esc(e.event || (e.type === 'page' ? 'Page: ' + (e.name || '') : e.type)) + '</td><td><code>' + esc(summary(e)) + '</code></td></tr>';
+          }).join('') + '</table>';
+      });
+    }
+
+    function refresh() {
+      fetch('/api/profiles').then(function (r) { return r.json(); }).then(function (rows) {
+        profiles = rows;
+        $('status').textContent = rows.length + ' profiles · อัปเดต ' + new Date().toLocaleTimeString('th-TH');
+        renderList();
+        loadDetail();
+      }).catch(function () { $('status').textContent = 'เชื่อมต่อ processor ไม่ได้'; });
+    }
+
+    $('list').addEventListener('click', function (e) {
+      var item = e.target.closest('.item');
+      if (!item) return;
+      selected = item.getAttribute('data-id');
+      renderList();
+      loadDetail();
+    });
+    $('filter').addEventListener('input', renderList);
+    refresh();
+    setInterval(refresh, 3000);
+  </script>
+</body>
+</html>
