@@ -75,3 +75,32 @@ npm run processor   # tails data/events.ndjson -> data/cdp.sqlite, viewer on htt
 - Each stored line = event + `workspaceId` + `source` + `receivedAt` (server-set, can't be spoofed).
 - One writeKey per website; same workspace = profiles can merge across those sites.
 - Output is an NDJSON file standing in for the event bus. No dedupe here: the processor does that on `messageId`.
+
+## Deploy
+
+```
+Vercel (static)                    Railway (1 service + volume at /data)
+  index.html + sdk.js  ── POST ──▶   ingest :$PORT  /v1/collect, /health, /viewer (Basic auth)
+  (Ncomp demo shop)                  processor (1s loop) + viewer on 127.0.0.1:8788
+                                     /data/events.ndjson, /data/cdp.sqlite
+```
+
+Ingest and processor share files, so they run in one container (`npm start` → `scripts/start.ts`).
+Split them once the NDJSON file is replaced by a real queue.
+
+**Railway** (new project → deploy from GitHub repo; `railway.json` sets build/start/healthcheck)
+
+1. Add a volume mounted at `/data`.
+2. Variables:
+   - `DATA_DIR=/data`
+   - `WRITE_KEYS=<random-key>:demo:shop` (do not reuse `dev`; it is in the source code)
+   - `VIEWER_PASSWORD=<long random string>` (viewer at `https://<app>.up.railway.app/viewer`, any username)
+3. Settings → Networking → Generate domain. Check `https://<app>.up.railway.app/health`.
+
+**Vercel** (import the same repo; `vercel.json` sets build/output)
+
+1. Variables: `CDP_API_URL=https://<app>.up.railway.app`, `CDP_WRITE_KEY=<same random-key>`.
+2. Deploy. The build fails fast if either variable is missing or the URL is not https.
+
+Seed the deployed API: `ENDPOINT=https://<app>.up.railway.app/v1/collect npm run seed` (uses keys `dev`/`blog`,
+so add them to `WRITE_KEYS` first if you want seeded data there).

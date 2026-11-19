@@ -1,7 +1,8 @@
 // Processor: tails data/events.ndjson from a saved byte offset -> dedupe -> identity resolution -> SQLite.
 // Also serves the profile viewer (one process owns the DB).
 import { DatabaseSync } from 'node:sqlite';
-import { closeSync, fstatSync, openSync, readSync } from 'node:fs';
+import { closeSync, fstatSync, mkdirSync, openSync, readSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
@@ -190,9 +191,11 @@ export function createViewer(db: DatabaseSync, viewerFile: string) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const inFile = process.env.IN_FILE ?? 'data/events.ndjson';
-  const dbFile = process.env.DB_FILE ?? 'data/cdp.sqlite';
+  const dataDir = process.env.DATA_DIR ?? 'data';
+  const inFile = process.env.IN_FILE ?? join(dataDir, 'events.ndjson');
+  const dbFile = process.env.DB_FILE ?? join(dataDir, 'cdp.sqlite');
   const port = Number(process.env.VIEWER_PORT ?? 8788);
+  mkdirSync(dirname(dbFile), { recursive: true });
   const db = openDb(dbFile);
   const p = createProcessor(db, (msg) => console.log(`[processor] ${msg}`));
 

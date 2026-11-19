@@ -1,8 +1,9 @@
 // Ingest API: auth writeKey -> validate -> append to NDJSON -> 200.
 // ponytail: NDJSON file stands in for the event bus; swap appendFile for a Kafka/SQS producer when the processor exists.
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createServer, request, type IncomingMessage, type ServerResponse } from 'node:http';
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
-import { dirname, extname } from 'node:path';
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { CdpEvent } from '../src/index.ts';
 
@@ -15,6 +16,17 @@ export interface Config {
   writeKeys: Map<string, Source>;
   outFile: string;
   static?: Record<string, string>; // url path -> file (dev demo only)
+  // Proxy /viewer and /api/* to the processor's viewer, behind HTTP Basic auth (any username).
+  // Only one public port on Railway, and the viewer shows every profile, so it never goes out without a password.
+  viewer?: { url: string; password: string };
+}
+
+const sha = (s: string) => createHash('sha256').update(s).digest();
+function viewerAuthorized(header: string | undefined, password: string) {
+  const m = header?.match(/^Basic (.+)$/);
+  if (!m) return false;
+  const given = Buffer.from(m[1], 'base64').toString('utf8').split(':').slice(1).join(':');
+  return timingSafeEqual(sha(given), sha(password));
 }
 
 export interface Source { workspaceId: string; source: string }
@@ -76,6 +88,22 @@ export function createIngest(cfg: Config) {
         return send(204);
       }
       if (req.method === 'GET' && path === '/health') return send(200, { ok: true });
+      if (cfg.viewer && req.method === 'GET' && path && (path === '/viewer' || path.startsWith('/api/'))) {
+        res.removeHeader('Access-Control-Allow-Origin'); // private: no cross-origin reads
+        if (!viewerAuthorized(req.headers.authorization, cfg.viewer.password)) {
+          res.setHeader('WWW-Authenticate', 'Basic realm="CDP viewer"');
+          return send(401, { error: 'password required' });
+        }
+        const target = new URL(path === '/viewer' ? '/' : req.url!, cfg.viewer.url);
+        return new Promise<void>((done) => {
+          const up = request(target, { headers: { accept: req.headers.accept ?? '*/*' } }, (r) => {
+            res.writeHead(r.statusCode ?? 502, r.headers);
+            r.pipe(res).on('finish', done);
+          });
+          up.on('error', () => { send(502, { error: 'processor not reachable' }); done(); });
+          up.end();
+        });
+      }
       if (req.method === 'GET' && path && cfg.static?.[path]) {
         const file = cfg.static[path];
         res.writeHead(200, { 'Content-Type': MIME[extname(file)] ?? 'application/octet-stream' });
@@ -125,11 +153,14 @@ export function createIngest(cfg: Config) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const port = Number(process.env.PORT ?? 8787);
-  const outFile = process.env.OUT_FILE ?? 'data/events.ndjson';
+  const outFile = process.env.OUT_FILE ?? join(process.env.DATA_DIR ?? 'data', 'events.ndjson');
+  const password = process.env.VIEWER_PASSWORD;
   await mkdir(dirname(outFile), { recursive: true });
   createIngest({
     writeKeys: parseWriteKeys(process.env.WRITE_KEYS),
     outFile,
     static: { '/': 'demo/index.html', '/sdk.js': 'dist/browser.global.js' },
-  }).listen(port, () => console.log(`[ingest] http://localhost:${port}  ->  ${outFile}`));
+    viewer: password ? { url: `http://127.0.0.1:${process.env.VIEWER_PORT ?? 8788}`, password } : undefined,
+  }).listen(port, () =>
+    console.log(`[ingest] http://localhost:${port}  ->  ${outFile}${password ? '  (viewer at /viewer)' : ''}`));
 }

@@ -13,8 +13,13 @@
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=22.18"
+  },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean && tsup src/browser.ts --format iife --minify",
+    "build:demo": "npm run build && node scripts/build-demo.ts",
+    "start": "node scripts/start.ts",
     "test": "vitest run",
     "ingest": "node ingest/server.ts",
     "dev": "npm run build && npm run ingest",

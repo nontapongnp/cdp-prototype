@@ -11,7 +11,13 @@
           cdp.push([m].concat([].slice.call(arguments)))
         }
       })
-      cdp.init('dev', { endpoint: location.origin + '/v1/collect' })
+      // scripts/build-demo.ts swaps these placeholders for CDP_API_URL / CDP_WRITE_KEY on deploy.
+      // Untouched (served by local ingest): same origin + 'dev' key.
+      var api = '__CDP_API_URL__'
+      var key = '__CDP_WRITE_KEY__'
+      if (api.indexOf('__') === 0) api = location.origin
+      if (key.indexOf('__') === 0) key = 'dev'
+      cdp.init(key, { endpoint: api + '/v1/collect' })
     </script>
     <script async src="/sdk.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
