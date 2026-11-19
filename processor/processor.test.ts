@@ -133,7 +133,21 @@ test('toCsv: BOM, header, quoting, formula injection guard', () => {
   ]);
   const [head, r1, r2] = csv.slice(1).trim().split('\r\n');
   expect(csv[0]).toBe('﻿');
-  expect(head).toBe('profile_id,user_id,email,name,events,orders,total_spent,first_seen,last_seen');
-  expect(r1).toBe(`p1,u1,a@b.com,"'=HYPERLINK(""x"")",3,1,990,,`);
-  expect(r2).toBe('p2,,,"สมชาย, ใจดี",1,0,0,,');
+  expect(head).toBe('profile_id,user_id,email,name,events,orders,total_spent,first_seen,last_seen,utm_source,utm_campaign');
+  expect(r1).toBe(`p1,u1,a@b.com,"'=HYPERLINK(""x"")",3,1,990,,,,`);
+  expect(r2).toBe('p2,,,"สมชาย, ใจดี",1,0,0,,,,');
+});
+
+test('campaign: stored per event; profile keeps first and last touch', () => {
+  const { p, db } = setup();
+  p.handle(ev({ anonymousId: 'a1', context: { campaign: { source: 'facebook', name: 'bts' } } }));
+  p.handle(ev({ anonymousId: 'a1' }));
+  p.handle(ev({ anonymousId: 'a1', userId: 'u1', context: { campaign: { source: 'line', name: 'retarget' } } }));
+  const row = db.prepare(`SELECT
+    (SELECT campaign FROM events WHERE campaign IS NOT NULL ORDER BY timestamp LIMIT 1) f,
+    (SELECT campaign FROM events WHERE campaign IS NOT NULL ORDER BY timestamp DESC LIMIT 1) l,
+    (SELECT COUNT(*) FROM events WHERE campaign IS NULL) n`).get() as { f: string; l: string; n: number };
+  expect(JSON.parse(row.f)).toEqual({ source: 'facebook', name: 'bts' });
+  expect(JSON.parse(row.l)).toEqual({ source: 'line', name: 'retarget' });
+  expect(row.n).toBe(1);
 });

@@ -39,6 +39,18 @@ const ls = {
 const readCookie = (name: string) =>
   document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`))?.[1] ?? null;
 
+// Segment spec: ?utm_source=line&utm_campaign=bts -> context.campaign { source, name }.
+// ponytail: only on pages whose URL has utm_*; carry it across a multi-page session (sessionStorage) if needed
+const campaign = () => {
+  const q = new URLSearchParams(location.search);
+  const c: Props = {};
+  for (const k of ['source', 'medium', 'campaign', 'term', 'content']) {
+    const v = q.get('utm_' + k);
+    if (v) c[k === 'campaign' ? 'name' : k] = v.slice(0, 200);
+  }
+  return Object.keys(c).length ? c : undefined;
+};
+
 export function createCdp(writeKey: string, opts: Options) {
   const { endpoint, flushAt = 20, flushInterval = 5000, maxQueue = 1000, cookieDomain } = opts;
   let consent = opts.consent ?? true;
@@ -77,6 +89,7 @@ export function createCdp(writeKey: string, opts: Options) {
         page: { url: location.href, path: location.pathname, title: document.title, referrer: document.referrer },
         userAgent: navigator.userAgent,
         locale: navigator.language,
+        campaign: campaign(),
         webdriver: navigator.webdriver || undefined, // automated browser (link scanners, headless crawlers)
       },
     });

@@ -32,6 +32,7 @@
     .seg { font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid #d3d1c7; background: #fff; color: #444441; cursor: pointer; }
     .seg.on { background: #3c3489; border-color: #3c3489; color: #fff; }
     .tag.segtag { background: #faeeda; color: #633806; }
+    .tag.utm { background: #e6f1fb; color: #0c447c; }
     .empty { padding: 40px; text-align: center; color: #6b6b66; }
     nav { display: flex; gap: 4px; }
     nav a { color: #b4b2a9; text-decoration: none; padding: 5px 12px; border-radius: 8px; }
@@ -101,7 +102,7 @@
           (s.members.length ? '<table><tr><th>ชื่อ</th><th>ระบุตัวตน</th><th style="width:70px">Orders</th><th style="width:110px">ยอดซื้อ</th><th style="width:150px">ล่าสุด</th></tr>' +
             s.members.map(function (m) {
               return '<tr class="click" data-id="' + esc(m.profile_id) + '"><td><b>' + esc(label(m)) + '</b><div class="muted">' + esc(parse(m.traits).email || '') + '</div></td>' +
-                '<td>' + (m.user_id ? '<span class="tag">' + esc(m.user_id) + '</span>' : '<span class="tag anon">anonymous</span>') + '</td>' +
+                '<td>' + (m.user_id ? '<span class="tag">' + esc(m.user_id) + '</span>' : '<span class="tag anon">anonymous</span>') + utmTag(m.first_campaign) + '</td>' +
                 '<td>' + m.orders + '</td><td>' + baht(m.total_spent) + '</td><td class="muted">' + when(m.last_seen) + '</td></tr>';
             }).join('') + '</table>' : '<div class="empty">ไม่มีสมาชิก</div>');
       });
@@ -119,6 +120,8 @@
     var baht = function (n) { return '฿' + Number(n || 0).toLocaleString('th-TH'); };
     var when = function (ts) { return ts ? new Date(ts).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'medium' }) : '-'; };
     var parse = function (s) { try { return JSON.parse(s || '{}'); } catch (e) { return {}; } };
+    var utm = function (c) { c = parse(c); return c.source || c.name ? [c.source, c.medium, c.name].filter(Boolean).join(' / ') : ''; };
+    var utmTag = function (c) { var t = utm(c); return t ? '<span class="tag utm">' + esc(t) + '</span>' : ''; };
     var label = function (p) { var t = parse(p.traits); return t.name || t.email || p.user_id || 'Anonymous'; };
 
     function renderList() {
@@ -128,7 +131,7 @@
       $('list').innerHTML = rows.length ? rows.map(function (p) {
         return '<div class="item' + (p.profile_id === selected ? ' on' : '') + '" data-id="' + esc(p.profile_id) + '">' +
           '<div><b>' + esc(label(p)) + '</b> ' + (p.user_id ? '<span class="tag">' + esc(p.user_id) + '</span>' : p.bot ? '<span class="tag bot">bot</span>' : '<span class="tag anon">anonymous</span>') + '</div>' +
-          '<div>' + segOf(p.profile_id).map(function (s) { return '<span class="tag segtag">' + esc(s.name) + '</span>'; }).join('') + '</div>' +
+          '<div>' + utmTag(p.first_campaign) + segOf(p.profile_id).map(function (s) { return '<span class="tag segtag">' + esc(s.name) + '</span>'; }).join('') + '</div>' +
           '<div class="muted">' + p.events + ' events · ' + p.orders + ' orders · ' + baht(p.total_spent) + ' · ' + when(p.last_seen) + '</div>' +
           '<div>' + String(p.sources || '').split(',').filter(Boolean).map(function (s) { return '<span class="tag src">' + esc(s) + '</span>'; }).join('') + '</div></div>';
       }).join('') : '<div class="empty">ยังไม่มี profile</div>';
@@ -155,11 +158,12 @@
             '<div class="stat"><div class="muted">ยอดซื้อรวม</div><div>' + baht(s.total_spent) + '</div></div>' +
             '<div class="stat"><div class="muted">ล่าสุด</div><div style="font-size:13px">' + when(p.last_seen) + '</div></div></div>' +
           '<h3>Segments</h3><div>' + (segOf(p.profile_id).map(function (x) { return '<span class="tag segtag" title="' + esc(x.description) + '">' + esc(x.name) + '</span>'; }).join('') || '<span class="muted">-</span>') + '</div>' +
+          '<h3>ที่มา (UTM)</h3><div class="muted">First touch ' + (utmTag(s.first_campaign) || '-') + ' &nbsp; Last touch ' + (utmTag(s.last_campaign) || '-') + '</div>' +
           '<h3>Identities</h3><div>' + p.identities.map(function (i) { return '<span class="tag' + (i.kind === 'anon' ? ' anon' : '') + '">' + esc(i.kind) + ': ' + esc(i.value) + '</span>'; }).join(' ') + '</div>' +
           '<h3>Traits</h3><code>' + esc(Object.keys(traits).length ? JSON.stringify(traits) : '(none)') + '</code>' +
           '<h3>Timeline (' + p.events.length + ')</h3><table>' + p.events.map(function (e) {
             return '<tr><td class="t muted">' + when(e.timestamp) + '</td><td class="s"><span class="tag src">' + esc(e.source) + '</span></td>' +
-              '<td class="e">' + esc(e.event || (e.type === 'page' ? 'Page: ' + (e.name || '') : e.type)) + '</td><td><code>' + esc(summary(e)) + '</code></td></tr>';
+              '<td class="e">' + esc(e.event || (e.type === 'page' ? 'Page: ' + (e.name || '') : e.type)) + '</td><td>' + utmTag(e.campaign) + '<code>' + esc(summary(e)) + '</code></td></tr>';
           }).join('') + '</table>';
       });
     }

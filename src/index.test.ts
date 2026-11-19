@@ -68,3 +68,15 @@ test('no consent = nothing stored or sent', async () => {
   expect(document.cookie).not.toMatch(/cdp_aid=[^;]/);
   expect(localStorage.getItem('cdp_uid')).toBeNull();
 });
+
+test('utm params go to context.campaign (utm_campaign -> name), absent without them', async () => {
+  history.replaceState(null, '', '/?utm_source=line&utm_medium=social&utm_campaign=bts2026&x=1');
+  const cdp = createCdp('key', { endpoint: '/e' });
+  cdp.page('Home');
+  history.replaceState(null, '', '/');
+  cdp.track('A');
+  await cdp.flush();
+  const [a, b] = sent();
+  expect(a.context.campaign).toEqual({ source: 'line', medium: 'social', name: 'bts2026' });
+  expect(b.context.campaign).toBeUndefined();
+});

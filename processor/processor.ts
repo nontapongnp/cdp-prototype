@@ -26,11 +26,13 @@ export function openDb(path: string) {
     CREATE TABLE IF NOT EXISTS events (
       workspace_id TEXT NOT NULL, message_id TEXT NOT NULL, profile_id TEXT NOT NULL,
       source TEXT, type TEXT, event TEXT, name TEXT, anonymous_id TEXT, user_id TEXT,
-      timestamp TEXT, received_at TEXT, properties TEXT,
+      timestamp TEXT, received_at TEXT, properties TEXT, campaign TEXT,
       PRIMARY KEY (workspace_id, message_id));
     CREATE INDEX IF NOT EXISTS events_profile ON events(profile_id, timestamp);
   `);
-  try { db.exec('ALTER TABLE profiles ADD COLUMN bot INTEGER NOT NULL DEFAULT 0'); } catch {} // DBs made before the column
+  // DBs made before these columns
+  try { db.exec('ALTER TABLE profiles ADD COLUMN bot INTEGER NOT NULL DEFAULT 0'); } catch {}
+  try { db.exec('ALTER TABLE events ADD COLUMN campaign TEXT'); } catch {}
   return db;
 }
 
@@ -59,7 +61,7 @@ export function createProcessor(db: DatabaseSync, log: (msg: string) => void = (
       WHERE profile_id = :to`),
     dropProfile: db.prepare('DELETE FROM profiles WHERE profile_id = ?'),
     insertEvent: db.prepare(`INSERT INTO events (workspace_id, message_id, profile_id, source, type, event, name,
-      anonymous_id, user_id, timestamp, received_at, properties) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+      anonymous_id, user_id, timestamp, received_at, properties, campaign) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
   };
 
   const userOf = (pid: string) => (q.userOf.get(pid) as { value: string } | undefined)?.value;
@@ -110,7 +112,8 @@ export function createProcessor(db: DatabaseSync, log: (msg: string) => void = (
     const pid = resolve(ws, e);
     q.insertEvent.run(ws, e.messageId, pid, e.source ?? 'default', e.type, e.event ?? null, e.name ?? null,
       e.anonymousId, e.userId ?? null, e.timestamp, e.receivedAt ?? null,
-      JSON.stringify(e.properties ?? e.traits ?? {}));
+      JSON.stringify(e.properties ?? e.traits ?? {}),
+      e.context?.campaign && typeof e.context.campaign === 'object' ? JSON.stringify(e.context.campaign) : null);
     q.touch.run({ pid, ts: e.timestamp, bot: isBot(e) ? 1 : 0, traits: JSON.stringify(e.type === 'identify' ? e.traits ?? {} : {}) });
   }
 
@@ -222,7 +225,7 @@ export function clearBots(db: DatabaseSync): number {
 // BOM so Excel reads Thai as UTF-8. Cells starting with = + - @ get a ' so Excel won't run them as formulas
 // (names/emails come from website visitors).
 export function toCsv(rows: Record<string, any>[]): string {
-  const cols = ['profile_id', 'user_id', 'email', 'name', 'events', 'orders', 'total_spent', 'first_seen', 'last_seen'];
+  const cols = ['profile_id', 'user_id', 'email', 'name', 'events', 'orders', 'total_spent', 'first_seen', 'last_seen', 'utm_source', 'utm_campaign'];
   const cell = (v: unknown) => {
     let s = v == null ? '' : String(v);
     if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
@@ -231,7 +234,10 @@ export function toCsv(rows: Record<string, any>[]): string {
   const lines = rows.map((r) => {
     let t: Record<string, any> = {};
     try { t = JSON.parse(r.traits || '{}'); } catch {}
-    return cols.map((c) => cell(c === 'email' || c === 'name' ? t[c] : r[c])).join(',');
+    let fc: Record<string, any> = {};
+    try { fc = JSON.parse(r.first_campaign || '{}'); } catch {}
+    const val = (c: string) => c === 'email' || c === 'name' ? t[c] : c === 'utm_source' ? fc.source : c === 'utm_campaign' ? fc.name : r[c];
+    return cols.map((c) => cell(val(c))).join(',');
   });
   return '﻿' + [cols.join(','), ...lines].join('\r\n') + '\r\n';
 }
@@ -243,14 +249,16 @@ export function createViewer(db: DatabaseSync, viewerFile: string) {
       COUNT(e.message_id) AS events,
       COUNT(CASE WHEN e.event = 'Order Completed' THEN 1 END) AS orders,
       COALESCE(SUM(CASE WHEN e.event = 'Order Completed' THEN json_extract(e.properties, '$.total') END), 0) AS total_spent,
-      group_concat(DISTINCT e.source) AS sources
+      group_concat(DISTINCT e.source) AS sources,
+      (SELECT campaign FROM events c WHERE c.profile_id = p.profile_id AND c.campaign IS NOT NULL ORDER BY c.timestamp LIMIT 1) AS first_campaign,
+      (SELECT campaign FROM events c WHERE c.profile_id = p.profile_id AND c.campaign IS NOT NULL ORDER BY c.timestamp DESC LIMIT 1) AS last_campaign
     FROM profiles p LEFT JOIN events e ON e.profile_id = p.profile_id WHERE ${where}
     GROUP BY p.profile_id ORDER BY p.last_seen DESC ${limit}`);
   const list = summary('1', 'LIMIT 200');
   const members = summary('p.profile_id IN (SELECT value FROM json_each(?))');
   const one = db.prepare('SELECT * FROM profiles WHERE profile_id = ?');
   const ids = db.prepare('SELECT kind, value FROM identities WHERE profile_id = ? ORDER BY kind');
-  const evs = db.prepare(`SELECT timestamp, source, type, event, name, properties FROM events
+  const evs = db.prepare(`SELECT timestamp, source, type, event, name, properties, campaign FROM events
     WHERE profile_id = ? ORDER BY timestamp DESC LIMIT 500`);
 
   return createServer(async (req, res) => {
