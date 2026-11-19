@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { appendFileSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { clearBots, createProcessor, openDb } from './processor.ts';
+import { clearBots, createProcessor, openDb, segments, toCsv } from './processor.ts';
 
 let n = 0;
 const ev = (o: Record<string, unknown>) => ({
@@ -97,4 +97,43 @@ test('clearBots removes anonymous bot profiles with their events, keeps people a
   expect(profiles()).toHaveLength(2);
   expect((db.prepare("SELECT COUNT(*) c FROM events WHERE anonymous_id = 'scanner'").get() as { c: number }).c).toBe(0);
   expect(db.prepare("SELECT 1 FROM identities WHERE value = 'scanner'").get()).toBeUndefined();
+});
+
+test('segments: abandoners, high value, gaming interest, registered without order; anonymous bots excluded', () => {
+  const { p, db } = setup();
+  const at = (min: number) => new Date(Date.UTC(2026, 0, 1, 12, min)).toISOString();
+  const now = new Date(Date.UTC(2026, 0, 1, 13, 0));
+  const gaming = { category: 'Gaming', product_id: 'G1' };
+  // a1: added 60 min ago, never ordered -> abandoner
+  p.handle(ev({ anonymousId: 'a1', event: 'Product Added', timestamp: at(0), properties: gaming }));
+  // a2: added then ordered 80k incl. Gaming -> high value, not abandoner, not gaming_interest
+  p.handle(ev({ anonymousId: 'a2', userId: 'u2', event: 'Product Viewed', timestamp: at(0), properties: gaming }));
+  p.handle(ev({ anonymousId: 'a2', userId: 'u2', event: 'Product Added', timestamp: at(1), properties: gaming }));
+  p.handle(ev({ anonymousId: 'a2', userId: 'u2', event: 'Order Completed', timestamp: at(2), properties: { total: 80000, products: [gaming] } }));
+  // a3: logged in, viewed Gaming, added 5 min ago (too recent to be abandoned)
+  p.handle(ev({ anonymousId: 'a3', userId: 'u3', event: 'Product Viewed', timestamp: at(50), properties: gaming }));
+  p.handle(ev({ anonymousId: 'a3', userId: 'u3', event: 'Product Added', timestamp: at(55), properties: gaming }));
+  // bot: views Gaming, adds to cart -> excluded everywhere
+  p.handle(ev({ anonymousId: 'bot', event: 'Product Added', timestamp: at(0), properties: gaming, context: { webdriver: true } }));
+
+  const pid = (a: string) => (db.prepare("SELECT profile_id FROM identities WHERE kind = 'anon' AND value = ?").get(a) as { profile_id: string }).profile_id;
+  const got = Object.fromEntries(segments(db, now).map((s) => [s.id, s.members.sort()]));
+  expect(got).toEqual({
+    cart_abandoners: [pid('a1')],
+    high_value: [pid('a2')],
+    gaming_interest: [pid('a3')],
+    registered_no_order: [pid('a3')],
+  });
+});
+
+test('toCsv: BOM, header, quoting, formula injection guard', () => {
+  const csv = toCsv([
+    { profile_id: 'p1', user_id: 'u1', traits: JSON.stringify({ name: '=HYPERLINK("x")', email: 'a@b.com' }), events: 3, orders: 1, total_spent: 990 },
+    { profile_id: 'p2', traits: JSON.stringify({ name: 'สมชาย, ใจดี' }), events: 1, orders: 0, total_spent: 0 },
+  ]);
+  const [head, r1, r2] = csv.slice(1).trim().split('\r\n');
+  expect(csv[0]).toBe('﻿');
+  expect(head).toBe('profile_id,user_id,email,name,events,orders,total_spent,first_seen,last_seen');
+  expect(r1).toBe(`p1,u1,a@b.com,"'=HYPERLINK(""x"")",3,1,990,,`);
+  expect(r2).toBe('p2,,,"สมชาย, ใจดี",1,0,0,,');
 });

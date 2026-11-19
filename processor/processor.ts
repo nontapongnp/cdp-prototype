@@ -155,6 +155,50 @@ export function createProcessor(db: DatabaseSync, log: (msg: string) => void = (
   return { processFile, handle };
 }
 
+// Segments: rule = SQL returning profile_id. Evaluated on read (fine at POC size), anonymous bots excluded.
+// ponytail: rules live in code; a rule builder + stored/materialized segments when business needs to edit them
+const ABANDON_MINUTES = 30;
+export const SEGMENTS = [
+  {
+    id: 'cart_abandoners', name: 'ทิ้งตะกร้า',
+    description: `ใส่ตะกร้าล่าสุดเกิน ${ABANDON_MINUTES} นาทีแล้ว และยังไม่มี order หลังจากนั้น`,
+    sql: `SELECT profile_id FROM events GROUP BY profile_id
+      HAVING max(CASE WHEN event = 'Product Added' THEN timestamp END) < :abandonCutoff
+      AND coalesce(max(CASE WHEN event = 'Order Completed' THEN timestamp END), '')
+        < max(CASE WHEN event = 'Product Added' THEN timestamp END)`,
+  },
+  {
+    id: 'high_value', name: 'ยอดซื้อสูง',
+    description: 'ยอด Order Completed รวมตั้งแต่ ฿50,000',
+    sql: `SELECT profile_id FROM events WHERE event = 'Order Completed'
+      GROUP BY profile_id HAVING sum(json_extract(properties, '$.total')) >= 50000`,
+  },
+  {
+    id: 'gaming_interest', name: 'สนใจ Gaming ยังไม่ซื้อ',
+    description: 'ดูสินค้าหรือหมวด Gaming แต่ยังไม่เคยซื้อสินค้า Gaming',
+    sql: `SELECT DISTINCT e.profile_id FROM events e
+      WHERE e.event IN ('Product Viewed', 'Product List Viewed') AND json_extract(e.properties, '$.category') = 'Gaming'
+      AND NOT EXISTS (SELECT 1 FROM events o, json_each(o.properties, '$.products') j
+        WHERE o.profile_id = e.profile_id AND o.event = 'Order Completed' AND json_extract(j.value, '$.category') = 'Gaming')`,
+  },
+  {
+    id: 'registered_no_order', name: 'สมัครแล้วยังไม่ซื้อ',
+    description: 'เคย login แต่ยังไม่มี Order Completed',
+    sql: `SELECT profile_id FROM identities WHERE kind = 'user'
+      AND profile_id NOT IN (SELECT profile_id FROM events WHERE event = 'Order Completed')`,
+  },
+];
+
+export function segments(db: DatabaseSync, now = new Date()) {
+  const abandonCutoff = new Date(now.getTime() - ABANDON_MINUTES * 60_000).toISOString();
+  return SEGMENTS.map(({ sql, ...s }) => {
+    const rows = db.prepare(`SELECT DISTINCT profile_id FROM (${sql}) WHERE profile_id IN (SELECT profile_id FROM profiles
+      WHERE bot = 0 OR profile_id IN (SELECT profile_id FROM identities WHERE kind = 'user'))`)
+      .all(sql.includes(':abandonCutoff') ? { abandonCutoff } : {}) as { profile_id: string }[];
+    return { ...s, members: rows.map((r) => r.profile_id) };
+  });
+}
+
 // Deletes anonymous bot profiles (a logged-in profile is never a bot) with their events and identities.
 // ponytail: raw events.ndjson keeps them; a full reprocess brings them back, flagged again
 export function clearBots(db: DatabaseSync): number {
@@ -175,16 +219,35 @@ export function clearBots(db: DatabaseSync): number {
   }
 }
 
+// BOM so Excel reads Thai as UTF-8. Cells starting with = + - @ get a ' so Excel won't run them as formulas
+// (names/emails come from website visitors).
+export function toCsv(rows: Record<string, any>[]): string {
+  const cols = ['profile_id', 'user_id', 'email', 'name', 'events', 'orders', 'total_spent', 'first_seen', 'last_seen'];
+  const cell = (v: unknown) => {
+    let s = v == null ? '' : String(v);
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const lines = rows.map((r) => {
+    let t: Record<string, any> = {};
+    try { t = JSON.parse(r.traits || '{}'); } catch {}
+    return cols.map((c) => cell(c === 'email' || c === 'name' ? t[c] : r[c])).join(',');
+  });
+  return '﻿' + [cols.join(','), ...lines].join('\r\n') + '\r\n';
+}
+
 export function createViewer(db: DatabaseSync, viewerFile: string) {
-  const list = db.prepare(`
+  const summary = (where: string, limit = '') => db.prepare(`
     SELECT p.profile_id, p.workspace_id, p.traits, p.first_seen, p.last_seen, p.bot,
       (SELECT value FROM identities i WHERE i.profile_id = p.profile_id AND kind = 'user') AS user_id,
       COUNT(e.message_id) AS events,
       COUNT(CASE WHEN e.event = 'Order Completed' THEN 1 END) AS orders,
       COALESCE(SUM(CASE WHEN e.event = 'Order Completed' THEN json_extract(e.properties, '$.total') END), 0) AS total_spent,
       group_concat(DISTINCT e.source) AS sources
-    FROM profiles p LEFT JOIN events e ON e.profile_id = p.profile_id
-    GROUP BY p.profile_id ORDER BY p.last_seen DESC LIMIT 200`);
+    FROM profiles p LEFT JOIN events e ON e.profile_id = p.profile_id WHERE ${where}
+    GROUP BY p.profile_id ORDER BY p.last_seen DESC ${limit}`);
+  const list = summary('1', 'LIMIT 200');
+  const members = summary('p.profile_id IN (SELECT value FROM json_each(?))');
   const one = db.prepare('SELECT * FROM profiles WHERE profile_id = ?');
   const ids = db.prepare('SELECT kind, value FROM identities WHERE profile_id = ? ORDER BY kind');
   const evs = db.prepare(`SELECT timestamp, source, type, event, name, properties FROM events
@@ -203,6 +266,19 @@ export function createViewer(db: DatabaseSync, viewerFile: string) {
       }
       if (req.method === 'DELETE') return path === '/api/bots' ? json(200, { deleted: clearBots(db) }) : json(404, { error: 'not found' });
       if (path === '/api/profiles') return json(200, list.all());
+      if (path === '/api/segments') return json(200, segments(db));
+      const sm = path.match(/^\/api\/segments\/(\w+?)(\.csv)?$/);
+      if (sm) {
+        const s = segments(db).find((x) => x.id === sm[1]);
+        if (!s) return json(404, { error: 'not found' });
+        const rows = members.all(JSON.stringify(s.members)) as Record<string, any>[];
+        if (!sm[2]) return json(200, { ...s, members: rows });
+        res.writeHead(200, {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="segment-${s.id}-${new Date().toISOString().slice(0, 10)}.csv"`,
+        });
+        return res.end(toCsv(rows));
+      }
       const m = path.match(/^\/api\/profiles\/([\w-]+)$/);
       if (m) {
         const p = one.get(m[1]);

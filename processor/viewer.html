@@ -28,17 +28,92 @@
     td { padding: 6px 8px; border-top: 1px solid #f0f0ec; vertical-align: top; word-break: break-word; }
     td.t { width: 140px; } td.s { width: 70px; } td.e { width: 170px; font-weight: 500; }
     code { font-size: 12px; color: #444441; }
+    .segs { padding: 8px 16px; border-bottom: 1px solid #e8e8e4; background: #fff; display: flex; gap: 6px; flex-wrap: wrap; }
+    .seg { font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid #d3d1c7; background: #fff; color: #444441; cursor: pointer; }
+    .seg.on { background: #3c3489; border-color: #3c3489; color: #fff; }
+    .tag.segtag { background: #faeeda; color: #633806; }
     .empty { padding: 40px; text-align: center; color: #6b6b66; }
+    nav { display: flex; gap: 4px; }
+    nav a { color: #b4b2a9; text-decoration: none; padding: 5px 12px; border-radius: 8px; }
+    nav a.on { background: #3a3f45; color: #fff; }
+    .card { padding: 12px 14px; border-bottom: 1px solid #f0f0ec; cursor: pointer; }
+    .card:hover { background: #fafaf7; }
+    .card.on { background: #fdf0ea; }
+    .card .n { float: right; font-size: 20px; font-weight: 600; }
+    .btn { display: inline-block; font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 8px; background: #3c3489; color: #fff; text-decoration: none; }
+    tr.click { cursor: pointer; } tr.click:hover { background: #fafaf7; }
+    th { text-align: left; font-weight: 500; color: #6b6b66; font-size: 12px; padding: 6px 8px; }
   </style>
 </head>
 <body>
-  <header><b>CDP</b> Profiles <input id="filter" placeholder="ค้นหา ชื่อ อีเมล userId" /> <button id="clearBots" style="font:inherit;font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid #f09595;background:#fcebeb;color:#791f1f;cursor:pointer">ลบ bot</button> <span class="muted" style="color:#b4b2a9" id="status"></span></header>
-  <div class="layout">
-    <div class="panel" id="list"></div>
-    <div class="panel" style="padding:16px" id="detail"><div class="empty">เลือก profile ทางซ้าย</div></div>
+  <header><b>CDP</b>
+    <nav><a href="#/profiles" id="tabProfiles">Profiles</a><a href="#/segments" id="tabSegments">Segments</a></nav>
+    <input id="filter" placeholder="ค้นหา ชื่อ อีเมล userId" />
+    <button id="clearBots" style="font:inherit;font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid #f09595;background:#fcebeb;color:#791f1f;cursor:pointer">ลบ bot</button>
+    <span class="muted" style="color:#b4b2a9" id="status"></span></header>
+  <div id="profilesView">
+    <div class="segs" id="segs"></div>
+    <div class="layout">
+      <div class="panel" id="list"></div>
+      <div class="panel" style="padding:16px" id="detail"><div class="empty">เลือก profile ทางซ้าย</div></div>
+    </div>
+  </div>
+  <div id="segmentsView" hidden>
+    <div class="layout">
+      <div class="panel" id="segList"></div>
+      <div class="panel" style="padding:16px" id="segDetail"><div class="empty">เลือก segment ทางซ้าย</div></div>
+    </div>
   </div>
   <script>
-    var selected = null, profiles = [];
+    var selected = null, profiles = [], segs = [], seg = null, openSeg = null;
+    var tab = function () { return location.hash.indexOf('#/segments') === 0 ? 'segments' : 'profiles'; };
+
+    function renderTab() {
+      var s = tab() === 'segments';
+      $('profilesView').hidden = s; $('segmentsView').hidden = !s;
+      $('filter').style.visibility = s ? 'hidden' : '';
+      $('tabProfiles').className = s ? '' : 'on'; $('tabSegments').className = s ? 'on' : '';
+      if (s) { renderSegList(); loadSeg(); }
+    }
+
+    function renderSegList() {
+      $('segList').innerHTML = segs.length ? segs.map(function (s) {
+        return '<div class="card' + (s.id === openSeg ? ' on' : '') + '" data-seg="' + esc(s.id) + '"><span class="n">' + s.members.length + '</span>' +
+          '<b>' + esc(s.name) + '</b><div class="muted">' + esc(s.description) + '</div></div>';
+      }).join('') : '<div class="empty">ยังไม่มี segment</div>';
+    }
+
+    function loadSeg() {
+      if (!openSeg) return;
+      fetch('/api/segments/' + encodeURIComponent(openSeg)).then(function (r) { return r.ok ? r.json() : r.status; }).then(function (s) {
+        if (typeof s === 'number') { $('segDetail').innerHTML = '<div class="empty">โหลด segment ไม่ได้ (HTTP ' + s + ') ถ้าเพิ่งอัปเดตโค้ด ให้รัน npm start ใหม่</div>'; return; }
+        var known = s.members.filter(function (m) { return m.user_id; }).length;
+        var spent = s.members.reduce(function (a, m) { return a + Number(m.total_spent || 0); }, 0);
+        $('segDetail').innerHTML =
+          '<div style="display:flex;justify-content:space-between;align-items:start;gap:12px"><div><h2 style="margin:0">' + esc(s.name) + '</h2>' +
+          '<div class="muted">' + esc(s.description) + ' · ' + esc(s.id) + '</div></div>' +
+          '<a class="btn" href="/api/segments/' + encodeURIComponent(s.id) + '.csv" download>Export CSV</a></div>' +
+          '<div class="stats">' +
+            '<div class="stat"><div class="muted">สมาชิก</div><div>' + s.members.length + '</div></div>' +
+            '<div class="stat"><div class="muted">Login แล้ว</div><div>' + known + '</div></div>' +
+            '<div class="stat"><div class="muted">Anonymous</div><div>' + (s.members.length - known) + '</div></div>' +
+            '<div class="stat"><div class="muted">ยอดซื้อรวม</div><div>' + baht(spent) + '</div></div></div>' +
+          (s.members.length ? '<table><tr><th>ชื่อ</th><th>ระบุตัวตน</th><th style="width:70px">Orders</th><th style="width:110px">ยอดซื้อ</th><th style="width:150px">ล่าสุด</th></tr>' +
+            s.members.map(function (m) {
+              return '<tr class="click" data-id="' + esc(m.profile_id) + '"><td><b>' + esc(label(m)) + '</b><div class="muted">' + esc(parse(m.traits).email || '') + '</div></td>' +
+                '<td>' + (m.user_id ? '<span class="tag">' + esc(m.user_id) + '</span>' : '<span class="tag anon">anonymous</span>') + '</td>' +
+                '<td>' + m.orders + '</td><td>' + baht(m.total_spent) + '</td><td class="muted">' + when(m.last_seen) + '</td></tr>';
+            }).join('') + '</table>' : '<div class="empty">ไม่มีสมาชิก</div>');
+      });
+    }
+    var segOf = function (pid) { return segs.filter(function (s) { return s.members.indexOf(pid) >= 0; }); };
+    function renderSegs() {
+      var chip = function (id, text, title) {
+        return '<button class="seg' + (seg === id ? ' on' : '') + '" data-seg="' + esc(id || '') + '" title="' + esc(title || '') + '">' + esc(text) + '</button>';
+      };
+      $('segs').innerHTML = chip(null, 'ทั้งหมด (' + profiles.length + ')') +
+        segs.map(function (s) { return chip(s.id, s.name + ' (' + s.members.length + ')', s.description); }).join('');
+    }
     var $ = function (id) { return document.getElementById(id); };
     var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
     var baht = function (n) { return '฿' + Number(n || 0).toLocaleString('th-TH'); };
@@ -48,10 +123,12 @@
 
     function renderList() {
       var f = $('filter').value.trim().toLowerCase();
-      var rows = profiles.filter(function (p) { return !f || (label(p) + ' ' + p.traits + ' ' + (p.user_id || '') + (p.bot && !p.user_id ? ' bot' : ' human')).toLowerCase().indexOf(f) >= 0; });
+      var inSeg = seg && (segs.filter(function (s) { return s.id === seg; })[0] || { members: [] }).members;
+      var rows = profiles.filter(function (p) { return (!inSeg || inSeg.indexOf(p.profile_id) >= 0) && (!f || (label(p) + ' ' + p.traits + ' ' + (p.user_id || '') + (p.bot && !p.user_id ? ' bot' : ' human')).toLowerCase().indexOf(f) >= 0); });
       $('list').innerHTML = rows.length ? rows.map(function (p) {
         return '<div class="item' + (p.profile_id === selected ? ' on' : '') + '" data-id="' + esc(p.profile_id) + '">' +
           '<div><b>' + esc(label(p)) + '</b> ' + (p.user_id ? '<span class="tag">' + esc(p.user_id) + '</span>' : p.bot ? '<span class="tag bot">bot</span>' : '<span class="tag anon">anonymous</span>') + '</div>' +
+          '<div>' + segOf(p.profile_id).map(function (s) { return '<span class="tag segtag">' + esc(s.name) + '</span>'; }).join('') + '</div>' +
           '<div class="muted">' + p.events + ' events · ' + p.orders + ' orders · ' + baht(p.total_spent) + ' · ' + when(p.last_seen) + '</div>' +
           '<div>' + String(p.sources || '').split(',').filter(Boolean).map(function (s) { return '<span class="tag src">' + esc(s) + '</span>'; }).join('') + '</div></div>';
       }).join('') : '<div class="empty">ยังไม่มี profile</div>';
@@ -77,6 +154,7 @@
             '<div class="stat"><div class="muted">Orders</div><div>' + (s.orders || 0) + '</div></div>' +
             '<div class="stat"><div class="muted">ยอดซื้อรวม</div><div>' + baht(s.total_spent) + '</div></div>' +
             '<div class="stat"><div class="muted">ล่าสุด</div><div style="font-size:13px">' + when(p.last_seen) + '</div></div></div>' +
+          '<h3>Segments</h3><div>' + (segOf(p.profile_id).map(function (x) { return '<span class="tag segtag" title="' + esc(x.description) + '">' + esc(x.name) + '</span>'; }).join('') || '<span class="muted">-</span>') + '</div>' +
           '<h3>Identities</h3><div>' + p.identities.map(function (i) { return '<span class="tag' + (i.kind === 'anon' ? ' anon' : '') + '">' + esc(i.kind) + ': ' + esc(i.value) + '</span>'; }).join(' ') + '</div>' +
           '<h3>Traits</h3><code>' + esc(Object.keys(traits).length ? JSON.stringify(traits) : '(none)') + '</code>' +
           '<h3>Timeline (' + p.events.length + ')</h3><table>' + p.events.map(function (e) {
@@ -87,11 +165,14 @@
     }
 
     function refresh() {
-      fetch('/api/profiles').then(function (r) { return r.json(); }).then(function (rows) {
+      Promise.all([fetch('/api/profiles'), fetch('/api/segments')]).then(function (r) { return Promise.all(r.map(function (x) { return x.json(); })); }).then(function (both) {
+        var rows = both[0];
         profiles = rows;
+        segs = both[1];
+        renderSegs();
         $('status').textContent = rows.length + ' profiles · อัปเดต ' + new Date().toLocaleTimeString('th-TH');
         renderList();
-        loadDetail();
+        if (tab() === 'segments') { renderSegList(); loadSeg(); } else loadDetail();
       }).catch(function () { $('status').textContent = 'เชื่อมต่อ processor ไม่ได้'; });
     }
 
@@ -103,12 +184,34 @@
       loadDetail();
     });
     $('filter').addEventListener('input', renderList);
+    $('segs').addEventListener('click', function (e) {
+      var b = e.target.closest('.seg');
+      if (!b) return;
+      seg = b.getAttribute('data-seg') || null;
+      renderSegs();
+      renderList();
+    });
     $('clearBots').onclick = function () {
       var n = profiles.filter(function (p) { return p.bot && !p.user_id; }).length;
       if (!n) return alert('ไม่มี bot profile');
       if (!confirm('ลบ bot profile ' + n + ' รายการ พร้อม events? (กู้คืนได้ด้วยการ reprocess จาก events.ndjson)')) return;
       fetch('/api/bots', { method: 'DELETE' }).then(function (r) { return r.json(); }).then(function (r) { $('status').textContent = 'ลบ bot ' + r.deleted + ' profile'; refresh(); });
     };
+    $('segList').addEventListener('click', function (e) {
+      var c = e.target.closest('.card');
+      if (!c) return;
+      openSeg = c.getAttribute('data-seg');
+      renderSegList();
+      loadSeg();
+    });
+    $('segDetail').addEventListener('click', function (e) {
+      var row = e.target.closest('tr.click');
+      if (!row) return;
+      selected = row.getAttribute('data-id');
+      location.hash = '#/profiles';
+    });
+    window.addEventListener('hashchange', function () { renderTab(); renderList(); loadDetail(); });
+    renderTab();
     refresh();
     setInterval(refresh, 3000);
   </script>
