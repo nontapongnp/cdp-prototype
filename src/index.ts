@@ -77,6 +77,7 @@ export function createCdp(writeKey: string, opts: Options) {
         page: { url: location.href, path: location.pathname, title: document.title, referrer: document.referrer },
         userAgent: navigator.userAgent,
         locale: navigator.language,
+        webdriver: navigator.webdriver || undefined, // automated browser (link scanners, headless crawlers)
       },
     });
     if (queue.length > maxQueue) queue = queue.slice(-maxQueue); // ponytail: drop oldest when offline too long

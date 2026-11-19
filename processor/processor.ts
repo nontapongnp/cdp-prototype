@@ -18,7 +18,7 @@ export function openDb(path: string) {
     CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
     CREATE TABLE IF NOT EXISTS profiles (
       profile_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL,
-      traits TEXT NOT NULL DEFAULT '{}', first_seen TEXT, last_seen TEXT);
+      traits TEXT NOT NULL DEFAULT '{}', first_seen TEXT, last_seen TEXT, bot INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS identities (
       workspace_id TEXT NOT NULL, kind TEXT NOT NULL, value TEXT NOT NULL, profile_id TEXT NOT NULL,
       PRIMARY KEY (workspace_id, kind, value));
@@ -30,8 +30,13 @@ export function openDb(path: string) {
       PRIMARY KEY (workspace_id, message_id));
     CREATE INDEX IF NOT EXISTS events_profile ON events(profile_id, timestamp);
   `);
+  try { db.exec('ALTER TABLE profiles ADD COLUMN bot INTEGER NOT NULL DEFAULT 0'); } catch {} // DBs made before the column
   return db;
 }
+
+// ponytail: UA keywords + navigator.webdriver; scanners faking a normal Chrome without webdriver slip through
+const BOT_UA = /bot|crawl|spider|slurp|headless|preview|scan|lighthouse|facebookexternalhit|whatsapp|skypeuripreview|bingpreview|python|curl|wget|httpclient|okhttp|phantom|puppeteer|playwright|selenium/i;
+export const isBot = (e: Ev) => e.context?.webdriver === true || BOT_UA.test(String(e.context?.userAgent ?? ''));
 
 export function createProcessor(db: DatabaseSync, log: (msg: string) => void = () => {}) {
   const q = {
@@ -43,13 +48,14 @@ export function createProcessor(db: DatabaseSync, log: (msg: string) => void = (
     addIdentity: db.prepare('INSERT INTO identities (workspace_id, kind, value, profile_id) VALUES (?, ?, ?, ?)'),
     newProfile: db.prepare('INSERT INTO profiles (profile_id, workspace_id, first_seen, last_seen) VALUES (?, ?, ?, ?)'),
     touch: db.prepare(`UPDATE profiles SET first_seen = min(first_seen, :ts), last_seen = max(last_seen, :ts),
-      traits = json_patch(traits, :traits) WHERE profile_id = :pid`),
+      bot = max(bot, :bot), traits = json_patch(traits, :traits) WHERE profile_id = :pid`),
     moveIdentities: db.prepare('UPDATE identities SET profile_id = ? WHERE profile_id = ?'),
     moveEvents: db.prepare('UPDATE events SET profile_id = ? WHERE profile_id = ?'),
     absorb: db.prepare(`UPDATE profiles SET
       traits = json_patch((SELECT traits FROM profiles WHERE profile_id = :from), traits),
       first_seen = min(first_seen, (SELECT first_seen FROM profiles WHERE profile_id = :from)),
-      last_seen = max(last_seen, (SELECT last_seen FROM profiles WHERE profile_id = :from))
+      last_seen = max(last_seen, (SELECT last_seen FROM profiles WHERE profile_id = :from)),
+      bot = max(bot, (SELECT bot FROM profiles WHERE profile_id = :from))
       WHERE profile_id = :to`),
     dropProfile: db.prepare('DELETE FROM profiles WHERE profile_id = ?'),
     insertEvent: db.prepare(`INSERT INTO events (workspace_id, message_id, profile_id, source, type, event, name,
@@ -105,7 +111,7 @@ export function createProcessor(db: DatabaseSync, log: (msg: string) => void = (
     q.insertEvent.run(ws, e.messageId, pid, e.source ?? 'default', e.type, e.event ?? null, e.name ?? null,
       e.anonymousId, e.userId ?? null, e.timestamp, e.receivedAt ?? null,
       JSON.stringify(e.properties ?? e.traits ?? {}));
-    q.touch.run({ pid, ts: e.timestamp, traits: JSON.stringify(e.type === 'identify' ? e.traits ?? {} : {}) });
+    q.touch.run({ pid, ts: e.timestamp, bot: isBot(e) ? 1 : 0, traits: JSON.stringify(e.type === 'identify' ? e.traits ?? {} : {}) });
   }
 
   // Reads only complete lines after the saved offset; offset and rows commit together, so a crash replays safely.
@@ -151,7 +157,7 @@ export function createProcessor(db: DatabaseSync, log: (msg: string) => void = (
 
 export function createViewer(db: DatabaseSync, viewerFile: string) {
   const list = db.prepare(`
-    SELECT p.profile_id, p.workspace_id, p.traits, p.first_seen, p.last_seen,
+    SELECT p.profile_id, p.workspace_id, p.traits, p.first_seen, p.last_seen, p.bot,
       (SELECT value FROM identities i WHERE i.profile_id = p.profile_id AND kind = 'user') AS user_id,
       COUNT(e.message_id) AS events,
       COUNT(CASE WHEN e.event = 'Order Completed' THEN 1 END) AS orders,

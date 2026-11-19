@@ -19,6 +19,7 @@
     .muted { color: #6b6b66; font-size: 12px; }
     .tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #eeedfe; color: #3c3489; margin-right: 4px; }
     .tag.anon { background: #f1efe8; color: #444441; }
+    .tag.bot { background: #fcebeb; color: #791f1f; }
     .tag.src { background: #e1f5ee; color: #085041; }
     .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
     .stat { background: #f6f6f4; border-radius: 8px; padding: 10px; }
@@ -47,10 +48,10 @@
 
     function renderList() {
       var f = $('filter').value.trim().toLowerCase();
-      var rows = profiles.filter(function (p) { return !f || (label(p) + ' ' + p.traits + ' ' + (p.user_id || '')).toLowerCase().indexOf(f) >= 0; });
+      var rows = profiles.filter(function (p) { return !f || (label(p) + ' ' + p.traits + ' ' + (p.user_id || '') + (p.bot && !p.user_id ? ' bot' : ' human')).toLowerCase().indexOf(f) >= 0; });
       $('list').innerHTML = rows.length ? rows.map(function (p) {
         return '<div class="item' + (p.profile_id === selected ? ' on' : '') + '" data-id="' + esc(p.profile_id) + '">' +
-          '<div><b>' + esc(label(p)) + '</b> ' + (p.user_id ? '<span class="tag">' + esc(p.user_id) + '</span>' : '<span class="tag anon">anonymous</span>') + '</div>' +
+          '<div><b>' + esc(label(p)) + '</b> ' + (p.user_id ? '<span class="tag">' + esc(p.user_id) + '</span>' : p.bot ? '<span class="tag bot">bot</span>' : '<span class="tag anon">anonymous</span>') + '</div>' +
           '<div class="muted">' + p.events + ' events · ' + p.orders + ' orders · ' + baht(p.total_spent) + ' · ' + when(p.last_seen) + '</div>' +
           '<div>' + String(p.sources || '').split(',').filter(Boolean).map(function (s) { return '<span class="tag src">' + esc(s) + '</span>'; }).join('') + '</div></div>';
       }).join('') : '<div class="empty">ยังไม่มี profile</div>';

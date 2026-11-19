@@ -75,3 +75,14 @@ test('processFile resumes from offset and waits for complete lines', () => {
   expect(p.processFile(file)).toBe(1 + 1);
   expect(p.processFile(file)).toBe(0);
 });
+
+test('bot flag: webdriver or crawler UA marks the profile, normal browser does not', () => {
+  const { p, db } = setup();
+  const chrome = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36';
+  p.handle(ev({ anonymousId: 'scanner', context: { userAgent: chrome, webdriver: true } }));
+  p.handle(ev({ anonymousId: 'crawler', context: { userAgent: 'Mozilla/5.0 (compatible; Googlebot/2.1)' } }));
+  p.handle(ev({ anonymousId: 'person', context: { userAgent: chrome } }));
+  const bot = (a: string) => (db.prepare(
+    "SELECT bot FROM profiles JOIN identities USING (profile_id) WHERE kind = 'anon' AND value = ?").get(a) as { bot: number }).bot;
+  expect([bot('scanner'), bot('crawler'), bot('person')]).toEqual([1, 1, 0]);
+});
