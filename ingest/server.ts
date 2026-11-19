@@ -88,7 +88,8 @@ export function createIngest(cfg: Config) {
         return send(204);
       }
       if (req.method === 'GET' && path === '/health') return send(200, { ok: true });
-      if (cfg.viewer && req.method === 'GET' && path && (path === '/viewer' || path.startsWith('/api/'))) {
+      // DELETE is CSRF-safe here: cross-origin it needs a preflight, and OPTIONS never allows it
+      if (cfg.viewer && (req.method === 'GET' || req.method === 'DELETE') && path && (path === '/viewer' || path.startsWith('/api/'))) {
         res.removeHeader('Access-Control-Allow-Origin'); // private: no cross-origin reads
         if (!viewerAuthorized(req.headers.authorization, cfg.viewer.password)) {
           res.setHeader('WWW-Authenticate', 'Basic realm="CDP viewer"');
@@ -96,7 +97,7 @@ export function createIngest(cfg: Config) {
         }
         const target = new URL(path === '/viewer' ? '/' : req.url!, cfg.viewer.url);
         return new Promise<void>((done) => {
-          const up = request(target, { headers: { accept: req.headers.accept ?? '*/*' } }, (r) => {
+          const up = request(target, { method: req.method, headers: { accept: req.headers.accept ?? '*/*' } }, (r) => {
             res.writeHead(r.statusCode ?? 502, r.headers);
             r.pipe(res).on('finish', done);
           });

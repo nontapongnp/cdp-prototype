@@ -32,7 +32,7 @@
   </style>
 </head>
 <body>
-  <header><b>CDP</b> Profiles <input id="filter" placeholder="ค้นหา ชื่อ อีเมล userId" /> <span class="muted" style="color:#b4b2a9" id="status"></span></header>
+  <header><b>CDP</b> Profiles <input id="filter" placeholder="ค้นหา ชื่อ อีเมล userId" /> <button id="clearBots" style="font:inherit;font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid #f09595;background:#fcebeb;color:#791f1f;cursor:pointer">ลบ bot</button> <span class="muted" style="color:#b4b2a9" id="status"></span></header>
   <div class="layout">
     <div class="panel" id="list"></div>
     <div class="panel" style="padding:16px" id="detail"><div class="empty">เลือก profile ทางซ้าย</div></div>
@@ -103,6 +103,12 @@
       loadDetail();
     });
     $('filter').addEventListener('input', renderList);
+    $('clearBots').onclick = function () {
+      var n = profiles.filter(function (p) { return p.bot && !p.user_id; }).length;
+      if (!n) return alert('ไม่มี bot profile');
+      if (!confirm('ลบ bot profile ' + n + ' รายการ พร้อม events? (กู้คืนได้ด้วยการ reprocess จาก events.ndjson)')) return;
+      fetch('/api/bots', { method: 'DELETE' }).then(function (r) { return r.json(); }).then(function (r) { $('status').textContent = 'ลบ bot ' + r.deleted + ' profile'; refresh(); });
+    };
     refresh();
     setInterval(refresh, 3000);
   </script>

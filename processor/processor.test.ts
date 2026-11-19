@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { appendFileSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createProcessor, openDb } from './processor.ts';
+import { clearBots, createProcessor, openDb } from './processor.ts';
 
 let n = 0;
 const ev = (o: Record<string, unknown>) => ({
@@ -85,4 +85,16 @@ test('bot flag: webdriver or crawler UA marks the profile, normal browser does n
   const bot = (a: string) => (db.prepare(
     "SELECT bot FROM profiles JOIN identities USING (profile_id) WHERE kind = 'anon' AND value = ?").get(a) as { bot: number }).bot;
   expect([bot('scanner'), bot('crawler'), bot('person')]).toEqual([1, 1, 0]);
+});
+
+test('clearBots removes anonymous bot profiles with their events, keeps people and logged-in profiles', () => {
+  const { p, db, profiles } = setup();
+  p.handle(ev({ anonymousId: 'scanner', context: { webdriver: true } }));
+  p.handle(ev({ anonymousId: 'scanner', context: { webdriver: true } }));
+  p.handle(ev({ anonymousId: 'person' }));
+  p.handle(ev({ anonymousId: 'tester', userId: 'u1', context: { webdriver: true } })); // logged in = person
+  expect(clearBots(db)).toBe(1);
+  expect(profiles()).toHaveLength(2);
+  expect((db.prepare("SELECT COUNT(*) c FROM events WHERE anonymous_id = 'scanner'").get() as { c: number }).c).toBe(0);
+  expect(db.prepare("SELECT 1 FROM identities WHERE value = 'scanner'").get()).toBeUndefined();
 });

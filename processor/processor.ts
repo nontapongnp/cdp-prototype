@@ -155,6 +155,26 @@ export function createProcessor(db: DatabaseSync, log: (msg: string) => void = (
   return { processFile, handle };
 }
 
+// Deletes anonymous bot profiles (a logged-in profile is never a bot) with their events and identities.
+// ponytail: raw events.ndjson keeps them; a full reprocess brings them back, flagged again
+export function clearBots(db: DatabaseSync): number {
+  const bots = `SELECT profile_id FROM profiles WHERE bot = 1
+    AND profile_id NOT IN (SELECT profile_id FROM identities WHERE kind = 'user')`;
+  db.exec('BEGIN');
+  try {
+    db.exec(`CREATE TEMP TABLE IF NOT EXISTS doomed (profile_id TEXT PRIMARY KEY); DELETE FROM doomed;
+      INSERT INTO doomed ${bots};
+      DELETE FROM events WHERE profile_id IN (SELECT profile_id FROM doomed);
+      DELETE FROM identities WHERE profile_id IN (SELECT profile_id FROM doomed);`);
+    const n = Number(db.prepare('DELETE FROM profiles WHERE profile_id IN (SELECT profile_id FROM doomed)').run().changes);
+    db.exec('COMMIT');
+    return n;
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+}
+
 export function createViewer(db: DatabaseSync, viewerFile: string) {
   const list = db.prepare(`
     SELECT p.profile_id, p.workspace_id, p.traits, p.first_seen, p.last_seen, p.bot,
@@ -181,6 +201,7 @@ export function createViewer(db: DatabaseSync, viewerFile: string) {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         return res.end(await readFile(viewerFile));
       }
+      if (req.method === 'DELETE') return path === '/api/bots' ? json(200, { deleted: clearBots(db) }) : json(404, { error: 'not found' });
       if (path === '/api/profiles') return json(200, list.all());
       const m = path.match(/^\/api\/profiles\/([\w-]+)$/);
       if (m) {

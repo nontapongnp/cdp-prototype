@@ -55,7 +55,7 @@ test('device clock 2h fast: timestamp corrected via sentAt, original kept', asyn
 })
 
 test('viewer proxy: 401 without password, proxied with it, absent when not configured', async () => {
-  const upstream = createServer((req, res) => res.end(`up:${req.url}`))
+  const upstream = createServer((req, res) => res.end(`up:${req.method === 'GET' ? '' : req.method + ' '}${req.url}`))
   await new Promise<void>((r) => upstream.listen(0, r))
   const gated = createIngest({
     writeKeys: parseWriteKeys('k1:ws1'),
@@ -73,6 +73,8 @@ test('viewer proxy: 401 without password, proxied with it, absent when not confi
     expect((await fetch(`${base}/api/profiles`, { headers: auth('wrong') })).status).toBe(401)
     expect(await (await fetch(`${base}/viewer`, { headers: auth('s3cret') })).text()).toBe('up:/')
     expect(await (await fetch(`${base}/api/profiles/p1`, { headers: auth('s3cret') })).text()).toBe('up:/api/profiles/p1')
+    expect(await (await fetch(`${base}/api/bots`, { method: 'DELETE', headers: auth('s3cret') })).text()).toBe('up:DELETE /api/bots')
+    expect((await fetch(`${base}/api/bots`, { method: 'DELETE' })).status).toBe(401)
     expect((await fetch(`${url}/viewer`)).status).toBe(404) // main test server has no viewer config
   } finally {
     gated.close()
